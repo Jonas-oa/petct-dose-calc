@@ -263,10 +263,8 @@ function recalc(lista, ac, vc, hC, t12, perda, fMinG, fMaxG) {
   let pool = cA;
   let pendentes = [];
   
-  // FASE 1: Subtrai as doses TRAVADAS (REAIS) do Frasco (Pool)
   for (let p of lc) {
     if (!isNaN(parseFloat(p.doseReal)) && parseFloat(p.doseReal) > 0) {
-      // Deduz a dose real do pool, contabilizando a perda e o decaimento até a calibração
       pool -= (parseFloat(p.doseReal) / fatorPerda) / p.dec;
       p.doseAplicar = parseFloat(p.doseReal);
     } else {
@@ -274,7 +272,6 @@ function recalc(lista, ac, vc, hC, t12, perda, fMinG, fMaxG) {
     }
   }
 
-  // FASE 2: Distribuição Elástica para os Destravados (Pendentes)
   let sobreviventes = [...pendentes];
   let reqMinTotal = 0;
   while (sobreviventes.length > 0) {
@@ -375,7 +372,7 @@ function MenuSobre({lang}){
 }
 
 /* --- TELA PRINCIPAL (EXCEL-LIKE / TABELA) --- */
-function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,showToast,lang}){
+function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,showToast,lang, onHCalibChange}){
   const t12=getT12(cfg.farmaco,cfg.mvCustom);
   const perda=parseFloat(cfg.perda)||4;
   const fMinG=parseFloat(cfg.fMin)||0.08;
@@ -426,7 +423,7 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,
           <Fld label={lang.perdaSeringa}><input className="inp" type="number" value={cfg.perda} onChange={e=>setCfg({...cfg,perda:e.target.value})} step="0.5" style={{height:42}}/></Fld>
         </div>
         <div className="g3" style={{alignItems:'end'}}>
-          <Fld label={lang.horario}><input className="inp mono" type="time" value={cfg.hCalib} onChange={e=>setCfg({...cfg,hCalib:e.target.value})} style={{fontWeight:800, height:46}}/></Fld>
+          <Fld label={lang.horario}><input className="inp mono" type="time" value={cfg.hCalib} onChange={e=>onHCalibChange(e.target.value)} style={{fontWeight:800, height:46}}/></Fld>
           <Fld label={lang.atividadeMci}><input className="inp mono" type="number" value={cfg.aCalib} onChange={e=>setCfg({...cfg,aCalib:e.target.value})} placeholder="Ex: 95.8" style={{borderColor:cor,borderWidth:2,background:'var(--surface)', height:46}}/></Fld>
           <Fld label={lang.volumeMl}><input className="inp mono" type="number" value={cfg.vCalib} onChange={e=>setCfg({...cfg,vCalib:e.target.value})} placeholder="Ex: 0.8" style={{height:46}}/></Fld>
         </div>
@@ -481,7 +478,6 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,
                   <td><div className="mono" style={{fontWeight:800, color:'var(--success)'}}>{f1(p.disp)}</div></td>
                   <td><div className="mono" style={{fontWeight:700, color:'var(--text-soft)'}}>{vol != null && !isNaN(vol) ? vol.toFixed(2) : '—'}</div></td>
                   
-                  {/* MECÂNICA DE TRAVA INDIVIDUAL */}
                   <td style={{background: temReal ? 'var(--c-light)' : 'transparent'}}>
                     <div style={{display:'flex', alignItems:'center', gap:6, justifyContent:'center'}}>
                       <input className="t-inp mono" type="number" step="0.1" value={p.doseReal} onChange={e=>upd(p.id, {doseReal: e.target.value})} placeholder="Auto" style={{width: 65, background: temReal ? 'var(--surface)' : 'var(--alt)', border: temReal ? '1px solid var(--c)' : '1px dashed var(--border)'}} title="Preencha apenas ao puxar a seringa" />
@@ -505,7 +501,7 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,
 }
 
 /* --- TELAS ORIGINAIS MODO CARTÕES (Mobile First) --- */
-function TelaLote({cfg,setCfg,cor,ativa,onLimpar,setMenuOpen,showToast,lang}){
+function TelaLote({cfg,setCfg,cor,ativa,onLimpar,setMenuOpen,showToast,lang, onHCalibChange}){
   const acN=parseFloat(cfg.aCalib)||0,vcN=parseFloat(cfg.vCalib)||0;
   const t12=getT12(cfg.farmaco,cfg.mvCustom);
   const loteCompletoRef=useRef(!!(cfg.aCalib&&cfg.vCalib));
@@ -544,7 +540,7 @@ function TelaLote({cfg,setCfg,cor,ativa,onLimpar,setMenuOpen,showToast,lang}){
       <div className="sec">{lang.calibracaoFrasco}</div>
       <div className="card" style={{padding:20,border:'none'}}>
         <div className="g3" style={{marginBottom:acN>0?18:0,alignItems:'end'}}>
-          <Fld label={lang.horario}><input className="inp mono" type="time" value={cfg.hCalib} onChange={e=>setCfg({...cfg,hCalib:e.target.value})} style={{fontWeight:800,fontSize:14,padding:'0 8px'}}/></Fld>
+          <Fld label={lang.horario}><input className="inp mono" type="time" value={cfg.hCalib} onChange={e=>onHCalibChange(e.target.value)} style={{fontWeight:800,fontSize:14,padding:'0 8px'}}/></Fld>
           <Fld label={lang.atividadeMci}><input className="inp mono" type="number" value={cfg.aCalib} onChange={e=>setCfg({...cfg,aCalib:e.target.value})} onBlur={handleACalibBlur} placeholder="Ex: 30" style={{borderColor:cor,borderWidth:2,background:'var(--surface)'}}/></Fld>
           <Fld label={lang.volumeMl}><input className="inp mono" type="number" value={cfg.vCalib} onChange={e=>setCfg({...cfg,vCalib:e.target.value})} onBlur={handleVCalibBlur} placeholder="Ex: 2.5"/></Fld>
         </div>
@@ -655,7 +651,6 @@ function PatientCard({p,isN,cor,acNum,vcNum,t12,hCalib,calibMin,onUpdate,onDelet
               {lang.doseAplicada} (Trava){p.isConstrained&&<span style={{color:'var(--warning)',marginLeft:8,fontSize:10,fontWeight:700,textTransform:'none',display:'flex',alignItems:'center',gap:4}}>{ICONS.info} {lang.atividadeLimitada}</span>}
             </div>
             
-            {/* NOVO BOTÃO DE TRAVA NO CARTÃO */}
             <div className={`dose-real-wrap${temReal?' filled':''}`}>
               <input className="dose-real-inp" type="number" inputMode="decimal" step="0.1" placeholder="Automático" value={doseReal} onChange={e=>handleRealChange(e.target.value)} onClick={e=>e.stopPropagation()} />
               <span className="dose-real-unit" style={{borderRight: '1px solid var(--border)'}}>mCi</span>
@@ -1109,7 +1104,9 @@ const LANGS_DICT={
     pdfAtivAgora:"Ativ. agora",pdfAtividade:"Atividade",pdfVolume2:"Volume",pdfCaptacao:"Captação",pdfExame:"Exame",pdfTolerancia:"Tolerância",pdfMeiaVida:"Meia-vida",pdfPerdaRF:"Perda RF",pdfCalibracao:"Calibração",pdfConcInicial:"Conc. inicial",
     navLote:"Lote",navOperacao:"Operação",navCalc:"Calculadora",
     travarDose: "Travar (Confirmar Dose)", destravarDose: "Destravar (Voltar Dinâmico)",
-    travar: "Travar", destravar: "Destravar"
+    travar: "Travar", destravar: "Destravar",
+    confirmarAjusteTempo: "O horário de calibração do frasco mudou. Deseja reajustar o horário de injeção de TODOS os pacientes na mesma proporção?",
+    horariosReajustados: "Horários dos pacientes reajustados!"
   },
   en:{_id:"en",
     configuracoes:"Settings",idioma:"Language",aparencia:"Appearance",modoEscuro:"Dark Mode",corTema:"Theme Color",vibracao:"Vibration",
@@ -1142,7 +1139,9 @@ const LANGS_DICT={
     pdfAtivAgora:"Act. now",pdfAtividade:"Activity",pdfVolume2:"Volume",pdfCaptacao:"Uptake",pdfExame:"Exam",pdfTolerancia:"Tolerance",pdfMeiaVida:"Half-life",pdfPerdaRF:"RF Loss",pdfCalibracao:"Calibration",pdfConcInicial:"Initial conc.",
     navLote:"Batch",navOperacao:"Operation",navCalc:"Calculator",
     travarDose: "Lock (Confirm Dose)", destravarDose: "Unlock (Restore Dynamic)",
-    travar: "Lock", destravar: "Unlock"
+    travar: "Lock", destravar: "Unlock",
+    confirmarAjusteTempo: "Calibration time changed. Adjust all patients' injection times by the same amount?",
+    horariosReajustados: "Patients' times adjusted!"
   },
   es:{_id:"es",
     configuracoes:"Configuración",idioma:"Idioma",aparencia:"Apariencia",modoEscuro:"Modo Oscuro",corTema:"Color Tema",vibracao:"Vibración",
@@ -1175,7 +1174,9 @@ const LANGS_DICT={
     pdfAtivAgora:"Act. ahora",pdfAtividade:"Actividad",pdfVolume2:"Volumen",pdfCaptacao:"Captación",pdfExame:"Examen",pdfTolerancia:"Tolerancia",pdfMeiaVida:"Semivida",pdfPerdaRF:"Pérd. RF",pdfCalibracao:"Calibración",pdfConcInicial:"Conc. inicial",
     navLote:"Lote",navOperacao:"Operación",navCalc:"Calculadora",
     travarDose: "Bloquear (Confirmar)", destravarDose: "Desbloquear",
-    travar: "Bloquear", destravar: "Desbloq."
+    travar: "Bloquear", destravar: "Desbloq.",
+    confirmarAjusteTempo: "La hora de calibración cambió. ¿Desea ajustar la hora de inyección de todos los pacientes en la misma proporción?",
+    horariosReajustados: "¡Horarios de pacientes ajustados!"
   }
 };
 
@@ -1219,6 +1220,28 @@ function App(){
     else if(tab==="main") setTab("lote");
   },[uiMode]);
 
+  const handleHCalibChange = (newTime) => {
+    if(!newTime) {
+      setCfg(prev => ({...prev, hCalib: newTime}));
+      return;
+    }
+    const oldTime = cfg.hCalib || "08:00";
+    const diff = getRelMin(newTime, oldTime);
+    
+    setCfg(prev => ({...prev, hCalib: newTime}));
+
+    // Se o horário mudou e já existem pacientes agendados, sugere o deslocamento na mesma proporção
+    if(diff !== 0 && lista.length > 0) {
+      if(confirm(lang.confirmarAjusteTempo)) {
+        setLista(prev => prev.map(p => ({
+          ...p,
+          hSim: addMin(p.hSim, diff)
+        })));
+        showToast(<>{ICONS.check} {lang.horariosReajustados}</>);
+      }
+    }
+  };
+
   const NAV=[{id:"lote",label:lang.navLote,icon:ICONS.lote},{id:"lista",label:lang.navOperacao,icon:ICONS.lista,badge:lista.length||null},{id:"calc",label:lang.navCalc,icon:ICONS.calc}];
 
   return <>
@@ -1226,10 +1249,10 @@ function App(){
     <Menu open={menu} onClose={()=>setMenu(false)} uiMode={uiMode} setUiMode={setUiMode} cfg={cfg} setCfg={setCfg} cor={cor} setCor={setCor} dark={dark} toggleDark={()=>setDark(!dark)} vibOn={vibOn} setVibOn={setVibOn} lang={lang} setLang={setLangId}/>
     
     {uiMode === "table" ? (
-      <TelaPrincipal cfg={cfg} setCfg={setCfg} lista={lista} setLista={setLista} cor={cor} onDash={()=>setTab("dash")} onCalc={()=>setTab("calc")} setMenuOpen={setMenu} showToast={showToast} lang={lang}/>
+      <TelaPrincipal cfg={cfg} setCfg={setCfg} lista={lista} setLista={setLista} cor={cor} onDash={()=>setTab("dash")} onCalc={()=>setTab("calc")} setMenuOpen={setMenu} showToast={showToast} lang={lang} onHCalibChange={handleHCalibChange}/>
     ) : (
       <>
-        <TelaLote cfg={cfg} setCfg={setCfg} cor={cor} ativa={tab==="lote"&&!novo} onLimpar={()=>{setLista([]);setCfg(p=>({...p,aCalib:"",vCalib:"",hCalib:"09:00",lote:""}));setTab("lote");}} setMenuOpen={setMenu} showToast={showToast} lang={lang}/>
+        <TelaLote cfg={cfg} setCfg={setCfg} cor={cor} ativa={tab==="lote"&&!novo} onLimpar={()=>{setLista([]);setCfg(p=>({...p,aCalib:"",vCalib:"",hCalib:"09:00",lote:""}));setTab("lote");}} setMenuOpen={setMenu} showToast={showToast} lang={lang} onHCalibChange={handleHCalibChange}/>
         <TelaLista cfg={cfg} setCfg={setCfg} lista={lista} setLista={setLista} cor={cor} onNovo={()=>setNovo(true)} onDash={()=>setTab("dash")} ativa={tab==="lista"&&!novo} showToast={showToast} onIrLote={()=>setTab("lote")} lang={lang}/>
         <TelaNovo cfg={cfg} lista={lista} onAdd={p=>{setLista(v=>[...v,p]);setNovo(false);setTab("lista");}} onBack={()=>setNovo(false)} cor={cor} ativa={novo} showToast={showToast} lang={lang}/>
         {!novo&&tab!=="dash"&&tab!=="calc"&&<nav className="nav">
