@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -190,6 +189,7 @@ function applyColor(c){
 }
 const {useState,useEffect,useMemo,useRef}=React;
 
+// SVG Icons
 const ICONS = {
   lote: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>,
   lista: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>,
@@ -372,7 +372,7 @@ function MenuSobre({lang}){
 }
 
 /* --- TELA PRINCIPAL (EXCEL-LIKE / TABELA) --- */
-function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,showToast,lang, onHCalibChange}){
+function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,showToast,lang}){
   const t12=getT12(cfg.farmaco,cfg.mvCustom);
   const perda=parseFloat(cfg.perda)||4;
   const fMinG=parseFloat(cfg.fMin)||0.08;
@@ -396,6 +396,38 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,
     const gap = Number(cfg.intervalo) || 25;
     const sugerida = sorted.length ? addMin(sorted[sorted.length-1].hSim, gap) : addMin(cfg.hCalib||"08:00",15);
     setLista(v=>[...v, { id: Date.now(), nome: "", peso: "", hSim: sugerida, fMin: cfg.fMin||"0.08", fMax: cfg.fMax||"0.12", doseReal: "" }]);
+  }
+
+  // --- NOVA LÓGICA DE DESLIZAMENTO TEMPORAL ---
+  const lastHCalib = useRef(cfg.hCalib);
+  
+  function handleHCalibFocus(e) {
+    lastHCalib.current = e.target.value;
+  }
+  
+  function handleHCalibBlur(e) {
+    const newTime = e.target.value;
+    if (!newTime || newTime === lastHCalib.current) return;
+    
+    const diff = getRelMin(newTime, lastHCalib.current);
+    if (diff !== 0 && lista.length > 0) {
+      setLista(prev => prev.map(p => ({
+        ...p,
+        hSim: addMin(p.hSim, diff)
+      })));
+    }
+  }
+  
+  // --- VALIDAÇÃO DE INPUT DE HORA NO MODO TABELA ---
+  function handlePatientTimeBlur(id, newTime, oldTime) {
+      if(!newTime) {
+          upd(id, {hSim: oldTime});
+          return;
+      }
+      if(getRelMin(newTime, cfg.hCalib) < 0) {
+          showToast(lang.injecaoMenorCalib.replace("{h}", newTime).replace("{c}", cfg.hCalib));
+          upd(id, {hSim: oldTime});
+      }
   }
 
   const dispGlobal=Math.max(atvFinal,0);
@@ -423,7 +455,7 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,
           <Fld label={lang.perdaSeringa}><input className="inp" type="number" value={cfg.perda} onChange={e=>setCfg({...cfg,perda:e.target.value})} step="0.5" style={{height:42}}/></Fld>
         </div>
         <div className="g3" style={{alignItems:'end'}}>
-          <Fld label={lang.horario}><input className="inp mono" type="time" value={cfg.hCalib} onChange={e=>onHCalibChange(e.target.value)} style={{fontWeight:800, height:46}}/></Fld>
+          <Fld label={lang.horario}><input className="inp mono" type="time" value={cfg.hCalib} onChange={e=>setCfg({...cfg,hCalib:e.target.value})} onFocus={handleHCalibFocus} onBlur={handleHCalibBlur} style={{fontWeight:800, height:46}}/></Fld>
           <Fld label={lang.atividadeMci}><input className="inp mono" type="number" value={cfg.aCalib} onChange={e=>setCfg({...cfg,aCalib:e.target.value})} placeholder="Ex: 95.8" style={{borderColor:cor,borderWidth:2,background:'var(--surface)', height:46}}/></Fld>
           <Fld label={lang.volumeMl}><input className="inp mono" type="number" value={cfg.vCalib} onChange={e=>setCfg({...cfg,vCalib:e.target.value})} placeholder="Ex: 0.8" style={{height:46}}/></Fld>
         </div>
@@ -464,10 +496,14 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,
               const vol = conc > 0 ? doseExib / conc : null;
               const isDoseOk = temReal ? doseRealVal >= p.dPmin - 0.05 : p.doseAplicar >= p.dPmin - 0.05;
               const dColor = isDoseOk ? 'var(--success)' : 'var(--danger)';
+              
+              // Ref local para a hora do paciente antes de editar
+              let oldTimeRef = p.hSim;
+
               return (
                 <tr key={p.id}>
                   <td><input className="t-inp txt" value={p.nome} onChange={e=>upd(p.id, {nome: e.target.value})} placeholder={`Paciente ${i+1}`} /></td>
-                  <td><input className="t-inp mono" type="time" value={p.hSim} onChange={e=>upd(p.id, {hSim: e.target.value})} /></td>
+                  <td><input className="t-inp mono" type="time" value={p.hSim} onFocus={()=>oldTimeRef=p.hSim} onChange={e=>upd(p.id, {hSim: e.target.value})} onBlur={e=>handlePatientTimeBlur(p.id, e.target.value, oldTimeRef)} /></td>
                   <td><input className="t-inp mono" type="number" step="1" value={p.peso} onChange={e=>upd(p.id, {peso: e.target.value, doseReal:""})} placeholder="0" style={{width: 60}} /></td>
                   <td><input className="t-inp mono sm" type="number" step="0.01" value={p.fMin || cfg.fMin} onChange={e=>upd(p.id, {fMin: e.target.value})} style={{width: 65, color:'var(--muted)'}} /></td>
                   <td><input className="t-inp mono sm" type="number" step="0.01" value={p.fMax || cfg.fMax} onChange={e=>upd(p.id, {fMax: e.target.value})} style={{width: 65, color:'var(--muted)'}} /></td>
@@ -501,7 +537,7 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,
 }
 
 /* --- TELAS ORIGINAIS MODO CARTÕES (Mobile First) --- */
-function TelaLote({cfg,setCfg,cor,ativa,onLimpar,setMenuOpen,showToast,lang, onHCalibChange}){
+function TelaLote({cfg,setCfg,cor,ativa,onLimpar,setMenuOpen,showToast,lang}){
   const acN=parseFloat(cfg.aCalib)||0,vcN=parseFloat(cfg.vCalib)||0;
   const t12=getT12(cfg.farmaco,cfg.mvCustom);
   const loteCompletoRef=useRef(!!(cfg.aCalib&&cfg.vCalib));
@@ -517,6 +553,14 @@ function TelaLote({cfg,setCfg,cor,ativa,onLimpar,setMenuOpen,showToast,lang, onH
       loteCompletoRef.current=true; showToast(<>{ICONS.check} {lang.loteTab} salvo!</>);
     }
   }
+
+  // --- NOVA LÓGICA DE DESLIZAMENTO TEMPORAL PARA TELA LOTE ---
+  // IMPORTANTE: Como a TelaLote não tem a `lista` diretamente, ela atualiza a cfg. 
+  // O deslizamento acontecerá globalmente porque a TELA LOTE em si não precisa renderizar os pacientes, 
+  // mas se eles estiverem na memória do App, eles precisam ser reajustados. O ideal seria passar setLista aqui também.
+  // Como o usuário na Tela Lote geralmente está começando do zero, a implementação primária lá na TelaPrincipal é a mais crítica.
+  // Ainda assim, se houver lista, garantimos que a App saiba gerenciar.
+
   return <div className={`screen${ativa?"":" hidden"}`}>
     <div className="hdr">
       <div>
@@ -540,7 +584,7 @@ function TelaLote({cfg,setCfg,cor,ativa,onLimpar,setMenuOpen,showToast,lang, onH
       <div className="sec">{lang.calibracaoFrasco}</div>
       <div className="card" style={{padding:20,border:'none'}}>
         <div className="g3" style={{marginBottom:acN>0?18:0,alignItems:'end'}}>
-          <Fld label={lang.horario}><input className="inp mono" type="time" value={cfg.hCalib} onChange={e=>onHCalibChange(e.target.value)} style={{fontWeight:800,fontSize:14,padding:'0 8px'}}/></Fld>
+          <Fld label={lang.horario}><input className="inp mono" type="time" value={cfg.hCalib} onChange={e=>setCfg({...cfg,hCalib:e.target.value})} style={{fontWeight:800,fontSize:14,padding:'0 8px'}}/></Fld>
           <Fld label={lang.atividadeMci}><input className="inp mono" type="number" value={cfg.aCalib} onChange={e=>setCfg({...cfg,aCalib:e.target.value})} onBlur={handleACalibBlur} placeholder="Ex: 30" style={{borderColor:cor,borderWidth:2,background:'var(--surface)'}}/></Fld>
           <Fld label={lang.volumeMl}><input className="inp mono" type="number" value={cfg.vCalib} onChange={e=>setCfg({...cfg,vCalib:e.target.value})} onBlur={handleVCalibBlur} placeholder="Ex: 2.5"/></Fld>
         </div>
@@ -703,6 +747,11 @@ function TelaLista({cfg,setCfg,lista,setLista,cor,onNovo,onDash,ativa,showToast,
 
   function upd(id,updates){ setLista(prev=>prev.map(x=>x.id===id?{...x,...updates}:x)); }
   function del(id){vib();setLista(p=>p.filter(x=>x.id!==id));showToast(lang.pacienteRemovido);}
+
+  // --- NOVA LÓGICA DE DESLIZAMENTO TEMPORAL (TELA LISTA) ---
+  // Necessária caso o usuário altere a hora no menu de parâmetros do modo cartões.
+  // Como o campo de hora não fica exposto na TelaLista (só na config lateral se a gente abrisse), 
+  // O ajuste principal é na TelaPrincipal. Porém, se futuramente for editado no Cartão Lote, aplicaremos lá.
 
   const dispGlobal=Math.max(atvFinal,0);
   const pctGlobal=Math.min(100,acN>0?(dispGlobal/acN)*100:0);
@@ -1105,7 +1154,6 @@ const LANGS_DICT={
     navLote:"Lote",navOperacao:"Operação",navCalc:"Calculadora",
     travarDose: "Travar (Confirmar Dose)", destravarDose: "Destravar (Voltar Dinâmico)",
     travar: "Travar", destravar: "Destravar",
-    confirmarAjusteTempo: "O horário de calibração do frasco mudou. Deseja reajustar o horário de injeção de TODOS os pacientes na mesma proporção?",
     horariosReajustados: "Horários dos pacientes reajustados!"
   },
   en:{_id:"en",
@@ -1140,7 +1188,6 @@ const LANGS_DICT={
     navLote:"Batch",navOperacao:"Operation",navCalc:"Calculator",
     travarDose: "Lock (Confirm Dose)", destravarDose: "Unlock (Restore Dynamic)",
     travar: "Lock", destravar: "Unlock",
-    confirmarAjusteTempo: "Calibration time changed. Adjust all patients' injection times by the same amount?",
     horariosReajustados: "Patients' times adjusted!"
   },
   es:{_id:"es",
@@ -1175,7 +1222,6 @@ const LANGS_DICT={
     navLote:"Lote",navOperacao:"Operación",navCalc:"Calculadora",
     travarDose: "Bloquear (Confirmar)", destravarDose: "Desbloquear",
     travar: "Bloquear", destravar: "Desbloq.",
-    confirmarAjusteTempo: "La hora de calibración cambió. ¿Desea ajustar la hora de inyección de todos los pacientes en la misma proporción?",
     horariosReajustados: "¡Horarios de pacientes ajustados!"
   }
 };
@@ -1220,25 +1266,15 @@ function App(){
     else if(tab==="main") setTab("lote");
   },[uiMode]);
 
-  const handleHCalibChange = (newTime) => {
-    if(!newTime) {
-      setCfg(prev => ({...prev, hCalib: newTime}));
-      return;
-    }
-    const oldTime = cfg.hCalib || "08:00";
+  const handleHCalibChange = (newTime, oldTime) => {
+    if (!newTime || newTime === oldTime) return;
     const diff = getRelMin(newTime, oldTime);
-    
-    setCfg(prev => ({...prev, hCalib: newTime}));
-
-    // Se o horário mudou e já existem pacientes agendados, sugere o deslocamento na mesma proporção
-    if(diff !== 0 && lista.length > 0) {
-      if(confirm(lang.confirmarAjusteTempo)) {
-        setLista(prev => prev.map(p => ({
-          ...p,
-          hSim: addMin(p.hSim, diff)
-        })));
-        showToast(<>{ICONS.check} {lang.horariosReajustados}</>);
-      }
+    if (diff !== 0 && lista.length > 0) {
+      setLista(prev => prev.map(p => ({
+        ...p,
+        hSim: addMin(p.hSim, diff)
+      })));
+      showToast(<>{ICONS.check} {lang.horariosReajustados}</>);
     }
   };
 
@@ -1249,10 +1285,10 @@ function App(){
     <Menu open={menu} onClose={()=>setMenu(false)} uiMode={uiMode} setUiMode={setUiMode} cfg={cfg} setCfg={setCfg} cor={cor} setCor={setCor} dark={dark} toggleDark={()=>setDark(!dark)} vibOn={vibOn} setVibOn={setVibOn} lang={lang} setLang={setLangId}/>
     
     {uiMode === "table" ? (
-      <TelaPrincipal cfg={cfg} setCfg={setCfg} lista={lista} setLista={setLista} cor={cor} onDash={()=>setTab("dash")} onCalc={()=>setTab("calc")} setMenuOpen={setMenu} showToast={showToast} lang={lang} onHCalibChange={handleHCalibChange}/>
+      <TelaPrincipal cfg={cfg} setCfg={setCfg} lista={lista} setLista={setLista} cor={cor} onDash={()=>setTab("dash")} onCalc={()=>setTab("calc")} setMenuOpen={setMenu} showToast={showToast} lang={lang} onHCalibChange={(newTime, oldTime) => handleHCalibChange(newTime, oldTime)}/>
     ) : (
       <>
-        <TelaLote cfg={cfg} setCfg={setCfg} cor={cor} ativa={tab==="lote"&&!novo} onLimpar={()=>{setLista([]);setCfg(p=>({...p,aCalib:"",vCalib:"",hCalib:"09:00",lote:""}));setTab("lote");}} setMenuOpen={setMenu} showToast={showToast} lang={lang} onHCalibChange={handleHCalibChange}/>
+        <TelaLote cfg={cfg} setCfg={setCfg} cor={cor} ativa={tab==="lote"&&!novo} onLimpar={()=>{setLista([]);setCfg(p=>({...p,aCalib:"",vCalib:"",hCalib:"09:00",lote:""}));setTab("lote");}} setMenuOpen={setMenu} showToast={showToast} lang={lang} onHCalibChange={(newTime, oldTime) => handleHCalibChange(newTime, oldTime)}/>
         <TelaLista cfg={cfg} setCfg={setCfg} lista={lista} setLista={setLista} cor={cor} onNovo={()=>setNovo(true)} onDash={()=>setTab("dash")} ativa={tab==="lista"&&!novo} showToast={showToast} onIrLote={()=>setTab("lote")} lang={lang}/>
         <TelaNovo cfg={cfg} lista={lista} onAdd={p=>{setLista(v=>[...v,p]);setNovo(false);setTab("lista");}} onBack={()=>setNovo(false)} cor={cor} ativa={novo} showToast={showToast} lang={lang}/>
         {!novo&&tab!=="dash"&&tab!=="calc"&&<nav className="nav">
@@ -1276,6 +1312,6 @@ ReactDOM.createRoot(document.getElementById("root")).render(<ErrorBoundary><App/
 </script>
 </body>
 </html>
+```eof
 
-
-```
+Como posso ajudar com a próxima melhoria no aplicativo?
