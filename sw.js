@@ -1,77 +1,60 @@
-// PET·CT Dose Pro — Service Worker (cache-first, 100% offline)
-const CACHE_VERSION = 'petct-v2';
-const CACHE_NAME = `petct-dose-pro-${CACHE_VERSION}`;
-
-const ASSETS = [
-  './',
-  './index.html',
-  './manifest.json',
-  './icone.png',
+const CACHE='petct-v4';
+const PRECACHE=[
+  '/',
   'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@600;700;800&display=swap'
 ];
 
-// Instala e pré-carrega todos os assets essenciais no cache
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) =>
-        Promise.all(
-          ASSETS.map((url) =>
-            cache.add(url).catch((err) => {
-              console.warn('[SW] Falhou ao cachear (será tentado de novo no uso):', url, err);
-            })
-          )
+self.addEventListener('install',e=>{
+  e.waitUntil(
+    caches.open(CACHE).then(c=>
+      Promise.allSettled(
+        PRECACHE.map(url=>
+          fetch(url,{cache:'no-cache'}).then(r=>{
+            if(r&&r.ok) c.put(url,r.clone());
+          }).catch(()=>{})
         )
       )
-      .then(() => self.skipWaiting())
+    ).then(()=>self.skipWaiting())
   );
 });
 
-// Remove caches de versões antigas
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key.startsWith('petct-dose-pro-') && key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
-      )
-    ).then(() => self.clients.claim())
+self.addEventListener('activate',e=>{
+  e.waitUntil(
+    caches.keys().then(ks=>
+      Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))
+    ).then(()=>self.clients.claim())
   );
 });
 
-// Estratégia: cache-first com fallback de rede e atualização em segundo plano
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) {
-        // Atualiza o cache em segundo plano (stale-while-revalidate)
-        fetch(event.request).then((response) => {
-          if (response && response.ok) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response));
+self.addEventListener('fetch',e=>{
+  if(e.request.method!=='GET') return;
+  const url=e.request.url;
+  const isCDN=url.includes('cdnjs.cloudflare.com')||url.includes('fonts.g');
+  if(isCDN){
+    e.respondWith(
+      caches.match(e.request).then(cached=>{
+        if(cached) return cached;
+        return fetch(e.request).then(resp=>{
+          if(resp&&resp.ok){
+            caches.open(CACHE).then(c=>c.put(e.request,resp.clone()));
           }
-        }).catch(() => {});
-        return cached;
-      }
-
-      return fetch(event.request).then((response) => {
-        if (response && response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          return resp;
+        }).catch(()=>new Response('',{status:503}));
+      })
+    );
+  } else {
+    e.respondWith(
+      fetch(e.request).then(resp=>{
+        if(resp&&resp.ok){
+          caches.open(CACHE).then(c=>c.put(e.request,resp.clone()));
         }
-        return response;
-      }).catch(() => {
-        // Sem cache e sem rede: para navegação, devolve o index.html (SPA fallback)
-        if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
-      });
-    })
-  );
+        return resp;
+      }).catch(()=>caches.match(e.request).then(c=>c||new Response('Offline',{status:503})))
+    );
+  }
 });

@@ -1,26 +1,18 @@
 {
   "name": "PET·CT Dose Pro",
   "short_name": "PET·CT Pro",
-  "description": "Aplicativo clínico para cálculo de doses e decaimento radioativo em PET/CT.",
-  "start_url": "./index.html",
-  "scope": "./",
+  "description": "Gerenciamento de doses radiofarmacêuticas PET/CT",
+  "start_url": "./",
   "display": "standalone",
-  "orientation": "portrait-primary",
   "background_color": "#F2F2F7",
   "theme_color": "#0A84FF",
-  "lang": "pt-BR",
+  "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "./icone.png",
+      "src": "icone.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "./icone.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     }
   ]
 }
