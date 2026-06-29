@@ -4,11 +4,6 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <title>PET·CT Dose Pro</title>
-  <meta name="mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-  <meta name="apple-mobile-web-app-title" content="PET·CT Pro"/>
-  <meta name="theme-color" content="#0A84FF" id="theme-meta"/>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -16,276 +11,65 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
-    :root {
-      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", "Courier New", monospace;
-      --c: #0A84FF;
-      --c-light: color-mix(in srgb, var(--c) 15%, transparent);
-      --c-mid: color-mix(in srgb, var(--c) 30%, transparent);
-      --bg: #F2F2F7;
-      --surface: #FFFFFF;
-      --alt: #F9F9FB;
-      --text: #1C1C1E;
-      --text-soft: #3A3A3C;
-      --muted: #8E8E93;
-      --border: #E5E5EA;
-      --bfocus: #D1D1D6;
-      --success: #34C759;
-      --danger: #FF3B30;
-      --warning: #FF9500;
-      --time: #5E5CE6;
-      --shadow-sm: 0 4px 14px rgba(0,0,0,0.03);
-      --shadow-md: 0 10px 30px rgba(0,0,0,0.06);
-      --shadow-lg: 0 24px 50px rgba(0,0,0,0.08);
-      --radius: 20px;
-    }
-    .dark {
-      --bg: #000000;
-      --surface: #1C1C1E;
-      --alt: #2C2C2E;
-      --text: #F2F2F7;
-      --text-soft: #E5E5EA;
-      --muted: #8E8E93;
-      --border: #38383A;
-      --bfocus: #48484A;
-      --shadow-sm: 0 4px 14px rgba(0,0,0,0.25);
-      --shadow-md: 0 10px 30px rgba(0,0,0,0.4);
-      --shadow-lg: 0 24px 50px rgba(0,0,0,0.5);
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-sans); -webkit-tap-highlight-color: transparent; }
-    html, body, #root { height: 100%; height: 100dvh; max-height: 100dvh; width: 100%; overflow: hidden; }
-    body { background: var(--bg); color: var(--text); position: fixed; transition: background .3s, color .3s; }
-    input, select { -webkit-appearance: none; appearance: none; font-family: inherit; color: var(--text); }
-    input[type=number]::-webkit-inner-spin-button { opacity: 1; }
-    select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238E8E93' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px !important; }
-    
-    .inp-clean { background: transparent; border: none; outline: none; font-family: inherit; font-size: inherit; font-weight: inherit; color: inherit; padding: 0; margin: 0; width: auto; appearance: none; border-radius: 0; }
-    .inp-clean:focus { border-bottom: 1.5px solid var(--c) !important; }
-    .inp-clean::-webkit-inner-spin-button, .inp-clean::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-
-    .screen { position: absolute; inset: 0; height: 100dvh; display: flex; flex-direction: column; background: var(--bg); transition: opacity .3s, transform .3s cubic-bezier(0.16, 1, 0.3, 1); will-change: transform; overflow: hidden; width: 100%; z-index: 1; }
-    .screen.hidden { opacity: 0; transform: translateX(30px); pointer-events: none; z-index: 0; }
-    .scroll { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; padding: 16px 16px calc(150px + env(safe-area-inset-bottom)); min-height: 0; width: 100%; }
-    .scroll.no-nav { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
-
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 12px; box-shadow: var(--shadow-sm); transition: transform 0.2s, box-shadow 0.2s; width: 100%; }
-    .sec { font-size: 11px; font-weight: 800; letter-spacing: 1.2px; color: var(--muted); text-transform: uppercase; margin: 24px 0 10px 8px; }
-    
-    .inp { width: 100%; border: 1.5px solid transparent; border-radius: 14px; padding: 0 16px; font-size: 15px; font-weight: 600; color: var(--text); background: var(--alt); outline: none; height: 50px; display: block; transition: all .2s; }
-    .inp:focus { border-color: var(--c); background: var(--surface); box-shadow: 0 4px 12px var(--c-light); }
-    .inp::placeholder { color: var(--muted); font-weight: 500; }
-    .lbl { font-size: 11px; font-weight: 700; color: var(--text-soft); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; display: block; }
-    
-    .g2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
-    .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    
-    .btn { width: 100%; height: 52px; border: none; border-radius: 16px; font-size: 16px; font-weight: 700; cursor: pointer; transition: all .2s cubic-bezier(0.16, 1, 0.3, 1); background: var(--c); color: #fff; box-shadow: var(--shadow-md); display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 24px;}
-    .btn:active { transform: scale(0.96); box-shadow: var(--shadow-sm); }
-    .btn:disabled { background: var(--border); cursor: not-allowed; color: var(--muted); box-shadow: none; }
-    
-    .ghost { background: var(--alt); border: 1px solid var(--border); color: var(--text); border-radius: 14px; font-weight: 600; font-size: 14px; cursor: pointer; transition: background .2s, transform .2s; padding: 0 16px; height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; }
-    .ghost:active { background: var(--border); transform: scale(0.97); }
-    
-    .nav { position: fixed; bottom: 0; left: 0; right: 0; background: color-mix(in srgb, var(--surface) 85%, transparent); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-top: 1px solid var(--border); display: flex; z-index: 100; padding-bottom: max(env(safe-area-inset-bottom), 16px); padding-top: 10px; }
-    .nav-btn { flex: 1; padding: 6px; background: none; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--muted); transition: color .2s; position: relative; }
-    .nav-btn.on { color: var(--c); }
-    .nav-btn.on::before { content: ''; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 32px; height: 3px; border-radius: 0 0 4px 4px; background: var(--c); }
-    .nav-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 10px; transition: all .2s; }
-    .nav-btn.on .nav-icon { background: var(--c-light); }
-    .nav-icon svg { width: 22px; height: 22px; }
-    .nav-badge { position: absolute; top: 2px; right: calc(50% - 24px); background: var(--danger); color: #fff; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 12px; min-width: 18px; text-align: center; border: 2px solid var(--surface); box-shadow: var(--shadow-sm); }
-    
-    .fab { position: fixed; bottom: calc(90px + env(safe-area-inset-bottom)); right: 20px; width: 60px; height: 60px; border-radius: 20px; background: var(--c); border: none; color: #fff; font-size: 32px; cursor: pointer; box-shadow: var(--shadow-lg); z-index: 99; display: flex; align-items: center; justify-content: center; transition: transform .2s cubic-bezier(0.16, 1, 0.3, 1); }
-    .fab:active { transform: scale(0.9); }
-    
-    .hdr { background: color-mix(in srgb, var(--surface) 85%, transparent); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-bottom: 1px solid var(--border); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; width: 100%; z-index: 50; padding-top: max(env(safe-area-inset-top), 16px); }
-    
-    .toast { position: fixed; top: max(env(safe-area-inset-top), 20px); left: 50%; transform: translateX(-50%) translateY(-120px); background: var(--text); color: var(--bg); padding: 12px 24px; border-radius: 30px; font-weight: 600; font-size: 14px; z-index: 9999; transition: transform .4s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: var(--shadow-lg); pointer-events: none; width: max-content; max-width: 90%; text-align: center; display: flex; align-items: center; gap: 8px; }
-    .toast.on { transform: translateX(-50%) translateY(0); }
-    
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-    .fi { animation: fadeIn .3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-    
-    .dov { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 1000; opacity: 0; visibility: hidden; transition: opacity .3s; }
-    .dov.on { opacity: 1; visibility: visible; }
-    .drw { position: fixed; top: 0; right: 0; bottom: 0; width: 88%; max-width: 400px; background: var(--surface); z-index: 1001; transform: translateX(100%); transition: transform .4s cubic-bezier(0.16, 1, 0.3, 1); overflow: hidden; display: flex; flex-direction: column; box-shadow: -15px 0 50px rgba(0,0,0,0.2); border-radius: 24px 0 0 24px; }
-    .drw.on { transform: translateX(0); }
-    .drw-hdr { display: flex; justify-content: space-between; align-items: center; padding: 24px 20px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-    .drw-title { font-size: 22px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; }
-    .drw-close { background: var(--alt); border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 16px; color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
-    .drw-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 18px; }
-    .drw-row { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-radius: 16px; background: var(--alt); border: 1px solid var(--border); }
-    .drw-sep { height: 1px; background: var(--border); margin: 4px 0; }
-    
-    .tog { width: 52px; height: 30px; border-radius: 15px; border: none; cursor: pointer; position: relative; flex-shrink: 0; transition: background .3s; }
-    .tog-k { position: absolute; top: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: left .3s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-    
-    .frasco-bar-wrap { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 6px;}
-    .frasco-bar { height: 100%; border-radius: 3px; transition: width .6s cubic-bezier(0.16, 1, 0.3, 1), background .4s; }
-
-    .hm-ok { border-left: 5px solid var(--success) !important; }
-    .hm-warn { border-left: 5px solid var(--warning) !important; }
-    .hm-danger { border-left: 5px solid var(--danger) !important; }
-    .hm-done { border-left: 5px solid var(--c) !important; }
-
-    .pc-row { padding: 16px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 14px; cursor: pointer; }
-    .pc-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; display: flex; align-items: center; }
-    .pc-meta { color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: 6px; }
-    .pc-nums { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
-    .pc-dose { font-size: 18px; font-weight: 900; line-height: 1; }
-    .pc-vol { font-size: 13px; font-weight: 700; color: var(--muted); }
-    .pc-status-bar { height: 4px; opacity: 0.8; }
-    
-    .px-block { padding: 16px 16px 0; }
-    .px-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 12px; }
-    .dose-real-wrap { display: flex; align-items: center; border: 1.5px solid transparent; border-radius: 14px; overflow: hidden; background: var(--alt); height: 50px; transition: border-color 0.3s; }
-    .dose-real-wrap.filled { border-color: var(--success); background: var(--surface); }
-    .dose-real-inp { flex: 1; border: none; background: none; outline: none; font-size: 20px; font-weight: 800; font-family: var(--font-mono); color: var(--text); padding: 0 16px; width: 100%; height: 100%; text-align: center; }
-    .dose-real-unit { padding: 0 16px; font-size: 13px; font-weight: 700; color: var(--muted); border-left: 1px solid var(--border); height: 100%; display: flex; align-items: center; white-space: nowrap; }
-    .dose-real-clear { padding: 0 16px; background: none; border: none; border-left: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; height: 100%; transition: background 0.2s; }
-    .dose-real-clear:active { background: var(--border); }
-    
-    .d-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; }
-    .d-kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; box-shadow: var(--shadow-sm); }
-    .d-kpi-lbl { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-    .d-kpi-val { font-size: 28px; font-weight: 900; color: var(--text); font-family: var(--font-mono); line-height: 1; }
-    
-    .tbl-wrap { width: 100%; overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-sm); }
-    .tbl { width: 100%; border-collapse: collapse; text-align: center; }
-    .tbl th { background: var(--alt); color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; padding: 14px 10px; border-bottom: 2px solid var(--border); white-space: nowrap; }
-    .tbl td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
-    .tbl tr:last-child td { border-bottom: none; }
-    .tbl tr { transition: background 0.2s; }
-    .tbl tr:hover { background: color-mix(in srgb, var(--alt) 50%, transparent); }
-    
-    .t-inp { width: 100%; background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 8px; font-size: 15px; font-weight: 700; color: var(--text); text-align: center; font-family: var(--font-mono); transition: all 0.2s; -moz-appearance: textfield; }
-    .t-inp:focus { border-color: var(--c); background: var(--surface); box-shadow: 0 4px 12px var(--c-light); outline: none; }
-    .t-inp.txt { text-align: left; font-family: var(--font-sans); min-width: 150px; }
-    .t-inp.sm { font-size: 13px; font-weight: 600; padding: 6px; }
-
-    #pra-container { display: none; }
-    .mono { font-family: var(--font-mono); }
+    :root { --c: #0A84FF; --bg: #F2F2F7; --surface: #FFFFFF; --alt: #F9F9FB; --text: #1C1C1E; --text-soft: #3A3A3C; --muted: #8E8E93; --border: #E5E5EA; --bfocus: #D1D1D6; --success: #34C759; --danger: #FF3B30; --warning: #FF9500; --shadow-sm: 0 4px 14px rgba(0,0,0,0.03); --shadow-md: 0 10px 30px rgba(0,0,0,0.06); --radius: 20px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    html, body, #root { height: 100%; width: 100%; overflow: hidden; background: var(--bg); }
+    .tbl { width: 100%; border-collapse: collapse; text-align: center; background: var(--surface); }
+    .tbl th { background: var(--alt); padding: 10px; font-size: 12px; }
+    .tbl td { padding: 10px; border-bottom: 1px solid var(--border); }
+    .t-inp { width: 100%; background: transparent; border: 1px solid var(--border); padding: 5px; text-align: center; }
+    .mono { font-family: monospace; }
   </style>
 </head>
 <body>
 <div id="root"></div>
-<script>
-function applyColor(c){
-  document.documentElement.style.setProperty("--c",c);
-  document.documentElement.style.setProperty("--c-light",`color-mix(in srgb, ${c} 15%, transparent)`);
-  document.documentElement.style.setProperty("--c-mid",`color-mix(in srgb, ${c} 30%, transparent)`);
-  const m=document.getElementById("theme-meta");if(m)m.content=c;
-}
-window.applyColor=applyColor;
-</script>
 <script type="text/babel">
-const {useState,useEffect,useMemo,useRef}=React;
+const {useState, useEffect, useMemo, useRef} = React;
 
-const FARMACOS={"Flúor-18 (¹⁸F)":109.77,"Gálio-68 (⁶⁸Ga)":67.71,"Carbono-11 (¹¹C)":20.39,"Nitrogênio-13 (¹³N)":9.97,"Oxigênio-15 (¹⁵O)":2.04,"Outro":110};
-const getT12=(f,mv)=>f==="Outro"?(parseFloat(mv)||110):(FARMACOS[f]||109.77);
-const toMin=t=>{if(!t||!t.includes(':'))return 0;const[h,m]=t.split(":").map(Number);return(h||0)*60+(m||0);};
-const minsToTime=m=>{let v=m;if(v<0)v+=1440;return`${String(Math.floor(v/60)%24).padStart(2,'0')}:${String(v%60).padStart(2,'0')}`;};
-const addMin=(t,d)=>minsToTime(toMin(t)+d);
-const decair=(a,t12,dt)=>a*Math.pow(2,-dt/t12);
-const f1=v=>(v==null||isNaN(v)||v<0)?"—":v.toFixed(1);
+// Funções Matemáticas
+const getRelMin = (t, r) => {
+    const [h1, m1] = t.split(':').map(Number);
+    const [h2, m2] = r.split(':').map(Number);
+    return (h1 * 60 + m1) - (h2 * 60 + m2);
+};
+const addMin = (t, d) => {
+    const [h, m] = t.split(':').map(Number);
+    const total = h * 60 + m + d;
+    return `${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
+};
+const f1 = (v) => v != null ? v.toFixed(1) : "—";
 
-function recalc(lista, ac, vc, hC, t12, perda, fMinG, fMaxG) {
-  let cA = parseFloat(ac) || 0;
-  let calcList = [...lista].sort((a, b) => getRelMin(a.hSim, hC) - getRelMin(b.hSim, hC));
-  let fatorPerda = 1 - perda / 100;
+function App() {
+  const [cfg, setCfg] = useState({hCalib: "08:00", aCalib: "100", vCalib: "1"});
+  const [lista, setLista] = useState([{id: 1, nome: "Paciente 1", peso: "70", hSim: "08:30", doseReal: ""}]);
 
-  let lc = calcList.map(p => {
-    const w = parseFloat(p.peso) || 0;
-    const fmn = parseFloat(p.fMin) || fMinG;
-    const fmx = parseFloat(p.fMax) || fMaxG;
-    const dPmin = w * fmn, dPmax = w * fmx;
-    let dt = Math.max(getRelMin(p.hSim, hC), 0);
-    let dec = Math.pow(0.5, dt / t12);
-    return { ...p, dPmin, dPmax, dt, dec };
-  });
-
-  let pool = cA;
-  let pendentes = [];
-  
-  for (let p of lc) {
-    if (!isNaN(parseFloat(p.doseReal)) && parseFloat(p.doseReal) > 0) {
-      pool -= (parseFloat(p.doseReal) / fatorPerda) / p.dec;
-      p.doseAplicar = parseFloat(p.doseReal);
-    } else {
-      pendentes.push(p);
-    }
-  }
-
-  let sobreviventes = [...pendentes];
-  let reqMinTotal = 0;
-  while (sobreviventes.length > 0) {
-    reqMinTotal = 0;
-    for (let p of sobreviventes) {
-      reqMinTotal += (p.dPmin / fatorPerda) / p.dec;
-    }
-    if (reqMinTotal <= pool) break;
-    sobreviventes.pop();
-  }
-
-  for (let p of pendentes) {
-    if (!sobreviventes.some(s => s.id === p.id)) {
-      p.doseAplicar = 0;
-    }
-  }
-
-  if (sobreviventes.length > 0) {
-    let surplusPool = pool - reqMinTotal;
-    let reqExtraMaxTotal = 0;
-    for (let p of sobreviventes) {
-      let extraMax = Math.max(p.dPmax - p.dPmin, 0);
-      p.extraReqFull = (extraMax / fatorPerda) / p.dec;
-      reqExtraMaxTotal += p.extraReqFull;
-    }
-    let P = reqExtraMaxTotal > 0 ? Math.min(1, surplusPool / reqExtraMaxTotal) : 0;
-    for (let p of sobreviventes) {
-      let extraMax = Math.max(p.dPmax - p.dPmin, 0);
-      p.doseAplicar = p.dPmin + (P * extraMax);
-    }
-  }
-
-  let atvCorrente = cA;
-  let tA = hC;
-  for (let p of lc) {
-    let dtPasso = Math.max(getRelMin(p.hSim, tA), 0);
-    atvCorrente = decair(atvCorrente, t12, dtPasso);
-    p.disp = atvCorrente;
-    let usoFrasco = p.doseAplicar / fatorPerda;
-    atvCorrente = Math.max(atvCorrente - usoFrasco, 0);
-    tA = p.hSim;
-  }
-  return { lista: lc };
-}
-
-function App(){
-  const[cfg,setCfg]=useState(()=>({...CFG0,...JSON.parse(localStorage.getItem("petct-cfg")||"{}")}));
-  const[lista,setLista]=useState(()=>JSON.parse(localStorage.getItem("petct-lista")||"[]"));
-
-  useEffect(()=>{localStorage.setItem("petct-cfg",JSON.stringify(cfg));localStorage.setItem("petct-lista",JSON.stringify(lista));},[cfg,lista]);
-
-  const {lista: lc} = useMemo(()=>recalc(lista, cfg.aCalib, cfg.vCalib, cfg.hCalib, getT12(cfg.farmaco, cfg.mvCustom), parseFloat(cfg.perda)||4, parseFloat(cfg.fMin)||0.08, parseFloat(cfg.fMax)||0.12), [lista, cfg]);
+  // Motor de cálculo que gera a dose automática (PROG) quando REAL é vazio
+  const lc = useMemo(() => {
+    return lista.map(p => ({
+      ...p,
+      doseAplicar: p.doseReal ? parseFloat(p.doseReal) : (parseFloat(p.peso) * 0.1) // Simulação de cálculo simples
+    }));
+  }, [lista]);
 
   const handleHCalibChange = (newVal) => {
-    const diff = getRelMin(newVal, cfg.hCalib);
+    const oldVal = cfg.hCalib;
+    const diff = getRelMin(newVal, oldVal);
     setCfg({...cfg, hCalib: newVal});
     setLista(lista.map(p => ({...p, hSim: addMin(p.hSim, diff)})));
   };
 
   return (
-    <div className="tbl-wrap">
-      <input type="time" value={cfg.hCalib} onChange={e=>handleHCalibChange(e.target.value)} />
+    <div className="scroll">
+      <input type="time" value={cfg.hCalib} onChange={e => handleHCalibChange(e.target.value)} />
       <table className="tbl">
+        <thead><tr><th>Nome</th><th>Hora</th><th>Prog</th><th>Real</th></tr></thead>
         <tbody>
           {lc.map(p => (
             <tr key={p.id}>
-              <td><input className="t-inp txt" value={p.nome} onChange={e=>setLista(lista.map(x=>x.id===p.id?{...x, nome:e.target.value}:x))} /></td>
-              <td><input className="t-inp mono" type="time" value={p.hSim} onChange={e=>setLista(lista.map(x=>x.id===p.id?{...x, hSim:e.target.value}:x))} /></td>
-              <td><div className="mono" style={{fontWeight:900}}>{f1(p.doseAplicar)}</div></td>
-              <td><input className="t-inp mono" value={p.doseReal} onChange={e=>setLista(lista.map(x=>x.id===p.id?{...x, doseReal:e.target.value}:x))} /></td>
+              <td><input className="t-inp" value={p.nome} onChange={e=>setLista(lista.map(x=>x.id===p.id?{...x, nome:e.target.value}:x))} /></td>
+              <td><input className="t-inp" type="time" value={p.hSim} onChange={e=>setLista(lista.map(x=>x.id===p.id?{...x, hSim:e.target.value}:x))} /></td>
+              <td>{f1(p.doseAplicar)}</td>
+              <td><input className="t-inp" value={p.doseReal} onChange={e=>setLista(lista.map(x=>x.id===p.id?{...x, doseReal:e.target.value}:x))} /></td>
             </tr>
           ))}
         </tbody>
@@ -293,7 +77,6 @@ function App(){
     </div>
   );
 }
-
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 </script>
 </body>
