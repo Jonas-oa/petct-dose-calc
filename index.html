@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -397,18 +398,18 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,
       vib(); setLista(p=>p.filter(x=>x.id!==id)); showToast(lang.pacienteRemovido);
     }
   }
+
+  // FIX: O antigo "Auto-Distribuir" travava as doses copiando-as para o estado fixo "doseReal".
+  // A nova função limpa as travas (doseReal), permitindo que o algoritmo (PROG) volte a distribuir livremente.
   function handleAutoDistribuir(){
     vib();
     if(!dispList.length)return;
-    let alterados = 0;
-    setLista(prev => prev.map(p => {
-      if (parseFloat(p.doseReal) > 0) return p;
-      const calcP = lc.find(x => x.id === p.id);
-      if(calcP && calcP.doseAplicar > 0) { alterados++; return {...p, doseReal: calcP.doseAplicar.toFixed(2)}; }
-      return {...p, doseReal: ""};
-    }));
-    showToast(<>{ICONS.scale} {lang.autoDistToast.replace("{k}", alterados)}</>);
+    if(confirm(lang.confirmarResetDinamico)) {
+      setLista(prev => prev.map(p => ({...p, doseReal: ""})));
+      showToast(<>{ICONS.scale} {lang.dinamicaRestaurada}</>);
+    }
   }
+
   function addRow(){
     vib();
     const sorted=[...lista].sort((a,b)=>getRelMin(a.hSim, cfg.hCalib)-getRelMin(b.hSim, cfg.hCalib));
@@ -460,7 +461,7 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', borderBottom:'1px solid var(--border)', background:'var(--surface)'}}>
           <span style={{fontSize:14, fontWeight:800, color:'var(--text)'}}>{lang.operacaoTab} ({lista.length})</span>
           <div style={{display:'flex', gap:8}}>
-            {lista.length>0 && <button onClick={handleAutoDistribuir} className="ghost" style={{height:36, padding:'0 12px', borderRadius:8, fontSize:12}}><span style={{color:'var(--text)'}}>{ICONS.scale}</span> {lang.autoDistribuir}</button>}
+            {lista.length>0 && <button onClick={handleAutoDistribuir} className="ghost" style={{height:36, padding:'0 12px', borderRadius:8, fontSize:12, border:'1px dashed var(--c)', color:'var(--c)'}}><span style={{color:'var(--c)'}}>{ICONS.scale}</span> {lang.autoDistribuir}</button>}
             <button onClick={addRow} className="btn" style={{height:36, padding:'0 16px', borderRadius:8, fontSize:13}}>+ Adicionar Linha</button>
           </div>
         </div>
@@ -469,8 +470,8 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,
             <tr>
               <th style={{textAlign:'left'}}>{lang.nomePaciente}</th><th>{lang.horario}</th><th>{lang.pesoKg}</th>
               <th style={{color:'var(--warning)'}} title={lang.doseMin}>MÍN</th><th style={{color:'var(--warning)'}} title={lang.doseMax}>MÁX</th>
-              <th style={{color:'var(--c)'}}>PROG. (mCi)</th><th style={{color:'var(--success)'}}>DISP. (mCi)</th>
-              <th>VOL. (mL)</th><th style={{color:'var(--text)'}}>REAL (mCi)</th><th></th>
+              <th style={{color:'var(--c)'}} title="Cálculo dinâmico automático">PROG. (mCi)</th><th style={{color:'var(--success)'}}>DISP. (mCi)</th>
+              <th>VOL. (mL)</th><th style={{color:'var(--text)'}} title="Valor extraído na seringa (Trava)">REAL (mCi)</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -497,7 +498,7 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,
                   </td>
                   <td><div className="mono" style={{fontWeight:800, color:'var(--success)'}}>{f1(p.disp)}</div></td>
                   <td><div className="mono" style={{fontWeight:700, color:'var(--text-soft)'}}>{vol != null && !isNaN(vol) ? vol.toFixed(2) : '—'}</div></td>
-                  <td style={{background: temReal ? 'var(--c-light)' : 'transparent'}}><input className="t-inp mono" type="number" step="0.1" value={p.doseReal} onChange={e=>upd(p.id, {doseReal: e.target.value})} placeholder="—" style={{width: 70, background: temReal ? 'var(--surface)' : 'var(--alt)'}} /></td>
+                  <td style={{background: temReal ? 'var(--c-light)' : 'transparent'}}><input className="t-inp mono" type="number" step="0.1" value={p.doseReal} onChange={e=>upd(p.id, {doseReal: e.target.value})} placeholder="Auto" style={{width: 70, background: temReal ? 'var(--surface)' : 'var(--alt)', border: temReal ? '1px solid var(--c)' : '1px dashed var(--border)'}} title="Preencha apenas ao puxar a seringa" /></td>
                   <td><button onClick={()=>del(p.id)} style={{background:'transparent', border:'none', color:'var(--danger)', cursor:'pointer', padding:8}}>{ICONS.trash}</button></td>
                 </tr>
               )
@@ -660,7 +661,7 @@ function PatientCard({p,isN,cor,acNum,vcNum,t12,hCalib,calibMin,onUpdate,onDelet
               {lang.doseAplicada}{p.isConstrained&&<span style={{color:'var(--warning)',marginLeft:8,fontSize:10,fontWeight:700,textTransform:'none',display:'flex',alignItems:'center',gap:4}}>{ICONS.info} {lang.atividadeLimitada}</span>}
             </div>
             <div className={`dose-real-wrap${temReal?' filled':''}`}>
-              <input className="dose-real-inp" type="number" inputMode="decimal" step="0.1" placeholder="0.0" value={doseReal} onChange={e=>handleRealChange(e.target.value)} onClick={e=>e.stopPropagation()} />
+              <input className="dose-real-inp" type="number" inputMode="decimal" step="0.1" placeholder="Auto" value={doseReal} onChange={e=>handleRealChange(e.target.value)} onClick={e=>e.stopPropagation()} />
               <span className="dose-real-unit">mCi</span>
               {temReal&&(<button className="dose-real-clear" onClick={(e)=>{e.stopPropagation();handleRealChange("");}}>{ICONS.close}</button>)}
             </div>
@@ -702,16 +703,15 @@ function TelaLista({cfg,setCfg,lista,setLista,cor,onNovo,onDash,ativa,showToast,
 
   function upd(id,updates){ setLista(prev=>prev.map(x=>x.id===id?{...x,...updates}:x)); }
   function del(id){vib();setLista(p=>p.filter(x=>x.id!==id));showToast(lang.pacienteRemovido);}
+  
+  // FIX: Resetar os campos reais permite que o cálculo dinâmico volte a atuar sobre os pendentes
   function handleAutoDistribuir(){
-    vib(); if(!dispList.length)return;
-    let alterados = 0;
-    setLista(prev => prev.map(p => {
-      if (parseFloat(p.doseReal) > 0) return p;
-      const calcP = lc.find(x => x.id === p.id);
-      if(calcP && calcP.doseAplicar > 0) { alterados++; return {...p, doseReal: calcP.doseAplicar.toFixed(2)}; }
-      return {...p, doseReal: ""};
-    }));
-    showToast(<>{ICONS.scale} {lang.autoDistToast.replace("{k}", alterados)}</>);
+    vib();
+    if(!dispList.length)return;
+    if(confirm(lang.confirmarResetDinamico)) {
+      setLista(prev => prev.map(p => ({...p, doseReal: ""})));
+      showToast(<>{ICONS.scale} {lang.dinamicaRestaurada}</>);
+    }
   }
 
   const dispGlobal=Math.max(atvFinal,0);
@@ -750,7 +750,7 @@ function TelaLista({cfg,setCfg,lista,setLista,cor,onNovo,onDash,ativa,showToast,
         <button onClick={()=>{vib();setParamAberto(!paramAberto)}} style={{background:'none',border:'none',color:'var(--muted)',fontWeight:800,fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',gap:8,padding:'4px 0'}}>
           {ICONS.settings} <span style={{fontSize:16,transition:'transform .3s',display:'inline-block',transform:paramAberto?'rotate(180deg)':'rotate(0deg)'}}>▾</span>
         </button>
-        {lista.length>0&&<button onClick={handleAutoDistribuir} className="btn" style={{height:38,width:'auto',padding:'0 16px',borderRadius:12,fontSize:12,fontWeight:800,boxShadow:'none',background:'var(--alt)',color:'var(--text)',border:'1px solid var(--border)'}}><span style={{color:'var(--text)'}}>{ICONS.scale}</span> {lang.autoDistribuir}</button>}
+        {lista.length>0&&<button onClick={handleAutoDistribuir} className="btn" style={{height:38,width:'auto',padding:'0 16px',borderRadius:12,fontSize:12,fontWeight:800,boxShadow:'none',background:'transparent',color:'var(--c)',border:'1px dashed var(--c)'}}><span style={{color:'var(--c)'}}>{ICONS.scale}</span> {lang.autoDistribuir}</button>}
       </div>
       
       {paramAberto && (
@@ -1097,8 +1097,10 @@ const LANGS_DICT={
     atividadeCalibrada:"Atividade Calibrada",concentracao:"Concentração",
     apagarOperacao:"Apagar Operação Completa",confirmarApagar:"Zerar toda a operação?",
     disponivel:"Disponível",dadosFrascoIncompletos:"Dados incompletos. Cálculos de dose podem estar incorretos.",
-    irParaLote:"Ir para Lote",autoDistribuir:"Auto-Distribuir",nenhumAgendamento:"Nenhum agendamento",toqueMais:"Toque para adicionar.",
-    autoDistToast:"Auto-Distribuição: {k} pacientes",pacienteRemovido:"Paciente removido",
+    irParaLote:"Ir para Lote",autoDistribuir:"Restaurar Dinâmica",nenhumAgendamento:"Nenhum agendamento",toqueMais:"Toque para adicionar.",
+    confirmarResetDinamico: "Isto apagará as doses 'REAIS' já digitadas e permitirá que o motor distribua o frasco dinamicamente. Continuar?",
+    dinamicaRestaurada: "Distribuição dinâmica reativada",
+    pacienteRemovido:"Paciente removido",
     horarioInjecao:"Horário de Injeção",doseAplicada:"Dose Aplicada",atividadeLimitada:"atividade limitada",
     atividadeAtual:"Atividade Atual",volumeAspirado:"Volume aspirado",
     novoAgendamento:"Novo Agendamento",cancelar:"Cancelar",nomePaciente:"Nome do Paciente",nomeCompleto:"Nome completo",
@@ -1128,8 +1130,10 @@ const LANGS_DICT={
     atividadeCalibrada:"Calibrated Activity",concentracao:"Concentration",
     apagarOperacao:"Clear Operation",confirmarApagar:"Reset entire operation?",
     disponivel:"Available",dadosFrascoIncompletos:"Vial data incomplete.",
-    irParaLote:"Go to Batch",autoDistribuir:"Auto-Distribute",nenhumAgendamento:"No appointments",toqueMais:"Tap to add.",
-    autoDistToast:"Auto-Distribution: {k} patients",pacienteRemovido:"Patient removed",
+    irParaLote:"Go to Batch",autoDistribuir:"Restore Dynamic",nenhumAgendamento:"No appointments",toqueMais:"Tap to add.",
+    confirmarResetDinamico: "This will clear entered real doses and let the engine distribute the vial dynamically. Continue?",
+    dinamicaRestaurada: "Dynamic distribution restored",
+    pacienteRemovido:"Patient removed",
     horarioInjecao:"Injection Time",doseAplicada:"Administered Dose",atividadeLimitada:"limited activity",
     atividadeAtual:"Current Activity",volumeAspirado:"Aspirated volume",
     novoAgendamento:"New Appointment",cancelar:"Cancel",nomePaciente:"NAME",nomeCompleto:"Full name",
@@ -1159,8 +1163,10 @@ const LANGS_DICT={
     atividadeCalibrada:"Actividad Calibrada",concentracao:"Concentración",
     apagarOperacao:"Borrar Operación",confirmarApagar:"¿Resetear toda la operación?",
     disponivel:"Disponible",dadosFrascoIncompletos:"Datos del vial incompletos.",
-    irParaLote:"Ir al Lote",autoDistribuir:"Auto-Distribuir",nenhumAgendamento:"Sin pacientes",toqueMais:"Toca para agregar.",
-    autoDistToast:"Auto-Distribución: {k} pacientes",pacienteRemovido:"Paciente eliminado",
+    irParaLote:"Ir al Lote",autoDistribuir:"Restaurar Dinámica",nenhumAgendamento:"Sin pacientes",toqueMais:"Toca para agregar.",
+    confirmarResetDinamico: "Esto borrará las dosis reales ingresadas y permitirá que el motor distribuya el vial dinámicamente. ¿Continuar?",
+    dinamicaRestaurada: "Distribución dinámica restaurada",
+    pacienteRemovido:"Paciente eliminado",
     horarioInjecao:"Horario Inyección",doseAplicada:"Dosis Administrada",atividadeLimitada:"actividad limitada",
     atividadeAtual:"Actividad Actual",volumeAspirado:"Volumen aspirado",
     novoAgendamento:"Nuevo Agendamiento",cancelar:"Cancelar",nomePaciente:"NOMBRE",nomeCompleto:"Nombre completo",
@@ -1253,3 +1259,5 @@ ReactDOM.createRoot(document.getElementById("root")).render(<ErrorBoundary><App/
 </script>
 </body>
 </html>
+
+```
