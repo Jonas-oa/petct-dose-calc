@@ -11,10 +11,6 @@
   <meta name="apple-mobile-web-app-title" content="PET·CT Pro"/>
   <meta name="theme-color" content="#0A84FF" id="theme-meta"/>
   
-  <link rel="manifest" href="manifest.json" />
-  <link rel="apple-touch-icon" href="icone.png" />
-  <link rel="icon" href="icone.png" />
-
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -184,14 +180,6 @@ function applyColor(c){
   const m=document.getElementById("theme-meta");if(m)m.content=c;
 }
 window.applyColor=applyColor;
-
-if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('sw.js')
-      .then(()=>console.log('[PWA] SW registrado — offline-first ativo'))
-      .catch(err=>console.warn('[PWA] SW falhou:',err));
-  });
-}
 </script>
 <script type="text/babel">
 function applyColor(c){
@@ -202,7 +190,6 @@ function applyColor(c){
 }
 const {useState,useEffect,useMemo,useRef}=React;
 
-// SVG Icons atualizados (incluindo Travar e Destravar)
 const ICONS = {
   lote: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>,
   lista: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>,
