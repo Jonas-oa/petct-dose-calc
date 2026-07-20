@@ -274,6 +274,25 @@ const getRelMin=(time,ref)=>{
   return m;
 };
 
+// Ao editar manualmente o horário de um paciente, os pacientes agendados
+// DEPOIS dele acompanham a mudança pelo mesmo deslocamento (delta), preservando
+// o intervalo entre eles. Pacientes já injetados (com dose real registrada)
+// permanecem fixos como âncoras.
+function cascataHorario(lista, hCalib, id, novoHorario){
+  const alvo = lista.find(x=>x.id===id);
+  if(!alvo) return lista;
+  const delta = toMin(novoHorario) - toMin(alvo.hSim);
+  const refAlvo = getRelMin(alvo.hSim, hCalib);
+  return lista.map(x=>{
+    if(x.id===id) return {...x, hSim:novoHorario};
+    if(delta===0) return x;
+    const jaInjetado = !isNaN(parseFloat(x.doseReal)) && parseFloat(x.doseReal) > 0;
+    if(jaInjetado) return x;
+    if(getRelMin(x.hSim, hCalib) > refAlvo) return {...x, hSim: addMin(x.hSim, delta)};
+    return x;
+  });
+}
+
 function recalc(lista, ac, vc, hC, t12, perda, fMinG, fMaxG) {
   let cA = parseFloat(ac) || 0;
   let calcList = [...lista].sort((a, b) => getRelMin(a.hSim, hC) - getRelMin(b.hSim, hC));
@@ -471,7 +490,10 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,
   const {lista:lc,atvFinal}=useMemo(()=>recalc(lista,cfg.aCalib,cfg.vCalib,cfg.hCalib,t12,perda,fMinG,fMxG),[lista,cfg,t12,perda,fMinG,fMxG]);
   const dispList=useMemo(()=>[...lc].sort((a,b)=>getRelMin(a.hSim, cfg.hCalib)-getRelMin(b.hSim, cfg.hCalib)),[lc, cfg.hCalib]);
 
-  function upd(id,updates){ setLista(prev=>prev.map(x=>x.id===id ? {...x,...updates} : x)); }
+  function upd(id,updates){
+    if(updates.hSim!==undefined){ setLista(prev=>cascataHorario(prev, cfg.hCalib, id, updates.hSim)); return; }
+    setLista(prev=>prev.map(x=>x.id===id ? {...x,...updates} : x));
+  }
   function del(id){
     if(confirm(lang.confirmarExclusao.replace("{nome}","este paciente"))){
       vib(); setLista(p=>p.filter(x=>x.id!==id)); showToast(lang.pacienteRemovido);
@@ -875,7 +897,10 @@ function TelaLista({cfg,setCfg,lista,setLista,cor,onNovo,onDash,ativa,showToast,
     return futuros.reduce((a,b)=>getRelMin(a.hSim, agora)<=getRelMin(b.hSim, agora)?a:b).id;
   },[dispList,agora]);
 
-  function upd(id,updates){ setLista(prev=>prev.map(x=>x.id===id?{...x,...updates}:x)); }
+  function upd(id,updates){
+    if(updates.hSim!==undefined){ setLista(prev=>cascataHorario(prev, cfg.hCalib, id, updates.hSim)); return; }
+    setLista(prev=>prev.map(x=>x.id===id?{...x,...updates}:x));
+  }
   function del(id){vib();setLista(p=>p.filter(x=>x.id!==id));showToast(lang.pacienteRemovido);}
 
   const dispGlobal = atvFinal; 
