@@ -483,7 +483,6 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,onLimpar,set
   const acN=parseFloat(cfg.aCalib)||0;
   const vcN=parseFloat(cfg.vCalib)||0;
   
-  const [paramAberto, setParamAberto] = useState(false);
   const [leftWidth, setLeftWidth] = useState(380);
   const resizingRef = useRef(false);
 
@@ -584,23 +583,21 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,onLimpar,set
 
         <div>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <button onClick={()=>{vib();setParamAberto(!paramAberto)}} style={{background:'none',border:'none',color:'var(--muted)',fontWeight:800,fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',gap:8,padding:'4px 0'}}>
-              {ICONS.settings} <span style={{transition:'transform .3s',display:'inline-block',transform:paramAberto?'rotate(180deg)':'rotate(0deg)'}}>▾</span> <span style={{fontSize:11, textTransform:'uppercase', letterSpacing: 1}}>{lang.janelaDose} Padrão</span>
-            </button>
-          </div>
-          
-          {paramAberto && (
-            <div className="fi" style={{marginTop:8, background:'var(--alt)',border:'1px solid var(--border)',borderRadius:16,padding:'16px'}}>
-              <div className="g2">
-                <Fld label={lang.doseMin}><input className="inp" type="number" step="0.01" value={cfg.fMin} onChange={e=>setCfg({...cfg,fMin:e.target.value})}/></Fld>
-                <Fld label={lang.doseMax}><input className="inp" type="number" step="0.01" value={cfg.fMax} onChange={e=>setCfg({...cfg,fMax:e.target.value})}/></Fld>
-              </div>
-              <div className="g2" style={{marginTop:16}}>
-                <Fld label={lang.captacao}><input className="inp" type="number" value={cfg.uptake??60} onChange={e=>setCfg({...cfg,uptake:e.target.value===""?"":parseInt(e.target.value)})} onBlur={e=>setCfg(c=>({...c,uptake:parseInt(e.target.value)||60}))}/></Fld>
-                <Fld label={lang.gapInjecao}><input className="inp" type="number" value={cfg.intervalo??25} onChange={e=>setCfg({...cfg,intervalo:e.target.value===""?"":parseInt(e.target.value)})} onBlur={e=>setCfg(c=>({...c,intervalo:parseInt(e.target.value)||25}))}/></Fld>
-              </div>
+            <div style={{color:'var(--muted)',fontWeight:800,fontSize:14,display:'flex',alignItems:'center',gap:8,padding:'4px 0'}}>
+              {ICONS.settings} <span style={{fontSize:11, textTransform:'uppercase', letterSpacing: 1}}>{lang.janelaDose} Padrão</span>
             </div>
-          )}
+          </div>
+
+          <div className="fi" style={{marginTop:8, background:'var(--alt)',border:'1px solid var(--border)',borderRadius:16,padding:'16px'}}>
+            <div className="g2">
+              <Fld label={lang.doseMin}><input className="inp" type="number" step="0.01" value={cfg.fMin} onChange={e=>setCfg({...cfg,fMin:e.target.value})}/></Fld>
+              <Fld label={lang.doseMax}><input className="inp" type="number" step="0.01" value={cfg.fMax} onChange={e=>setCfg({...cfg,fMax:e.target.value})}/></Fld>
+            </div>
+            <div className="g2" style={{marginTop:16}}>
+              <Fld label={lang.captacao}><input className="inp" type="number" value={cfg.uptake??60} onChange={e=>setCfg({...cfg,uptake:e.target.value===""?"":parseInt(e.target.value)})} onBlur={e=>setCfg(c=>({...c,uptake:parseInt(e.target.value)||60}))}/></Fld>
+              <Fld label={lang.gapInjecao}><input className="inp" type="number" value={cfg.intervalo??25} onChange={e=>setCfg({...cfg,intervalo:e.target.value===""?"":parseInt(e.target.value)})} onBlur={e=>setCfg(c=>({...c,intervalo:parseInt(e.target.value)||25}))}/></Fld>
+            </div>
+          </div>
         </div>
 
         <button onClick={()=>{if(confirm(lang.confirmarApagar)){ vib();onLimpar();showToast(lang.apagarOperacao);}}} className="ghost" style={{width:'100%',marginTop:18,color:'var(--danger)',borderColor:'color-mix(in srgb,var(--danger) 30%,transparent)',background:'color-mix(in srgb,var(--danger) 10%,transparent)'}}>{lang.apagarOperacao}</button>
