@@ -475,7 +475,7 @@ function MenuSobre({lang}){
   </div>;
 }
 
-function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,showToast,lang}){
+function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,onLimpar,setMenuOpen,showToast,lang}){
   const t12=getT12(cfg.farmaco,cfg.mvCustom);
   const perda=parseFloat(cfg.perda)||4;
   const fMinG=parseFloat(cfg.fMin)||0.08;
@@ -602,6 +602,8 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onDash,onCalc,setMenuOpen,
             </div>
           )}
         </div>
+
+        <button onClick={()=>{if(confirm(lang.confirmarApagar)){ vib();onLimpar();showToast(lang.apagarOperacao);}}} className="ghost" style={{width:'100%',marginTop:18,color:'var(--danger)',borderColor:'color-mix(in srgb,var(--danger) 30%,transparent)',background:'color-mix(in srgb,var(--danger) 10%,transparent)'}}>{lang.apagarOperacao}</button>
       </div>
 
       <div className="resizer" onMouseDown={handleMouseDown} />
@@ -1488,7 +1490,7 @@ function App(){
     <Menu open={menu} onClose={()=>setMenu(false)} uiMode={uiMode} setUiMode={setUiMode} cfg={cfg} setCfg={setCfg} cor={cor} setCor={setCor} dark={dark} toggleDark={()=>setDark(!dark)} vibOn={vibOn} setVibOn={setVibOn} lang={lang} setLang={setLangId}/>
     
     {uiMode === "table" ? (
-      <TelaPrincipal cfg={cfg} setCfg={setCfg} lista={lista} setLista={setLista} cor={cor} onDash={()=>setTab("dash")} onCalc={()=>setTab("calc")} setMenuOpen={setMenu} showToast={showToast} lang={lang}/>
+      <TelaPrincipal cfg={cfg} setCfg={setCfg} lista={lista} setLista={setLista} cor={cor} onDash={()=>setTab("dash")} onCalc={()=>setTab("calc")} onLimpar={()=>{setLista([]);setCfg(p=>({...p,aCalib:"",vCalib:"",hCalib:"09:00",lote:""}));}} setMenuOpen={setMenu} showToast={showToast} lang={lang}/>
     ) : (
       <>
         <TelaLote cfg={cfg} setCfg={setCfg} cor={cor} ativa={tab==="lote"&&!novo} onLimpar={()=>{setLista([]);setCfg(p=>({...p,aCalib:"",vCalib:"",hCalib:"09:00",lote:""}));setTab("lote");}} setMenuOpen={setMenu} showToast={showToast} lang={lang}/>
