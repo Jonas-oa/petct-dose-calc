@@ -480,6 +480,24 @@ function MenuSobre({lang}){
   </div>;
 }
 
+// Célula de horário (input type=time) que só aplica a mudança ao concluir a
+// edição (blur/Enter). Enquanto digita, o valor fica em estado local — evitando
+// que valores intermediários (ex.: "00:20") disparem a cascata e reordenem/
+// corrompam os pacientes seguintes no meio da digitação.
+function TimeCell({value,onCommit,style}){
+  const [v,setV]=useState(value);
+  useEffect(()=>{setV(value);},[value]);
+  function commit(){
+    if(v && /^\d{2}:\d{2}$/.test(v)){ if(v!==value) onCommit(v); }
+    else { setV(value); }
+  }
+  return <input className="t-inp mono" type="time" value={v}
+    onChange={e=>setV(e.target.value)}
+    onBlur={commit}
+    onKeyDown={e=>{ if(e.key==='Enter') e.currentTarget.blur(); }}
+    style={style}/>;
+}
+
 function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCalc,onLimpar,setMenuOpen,showToast,lang}){
   const t12=getT12(cfg.farmaco,cfg.mvCustom);
   const perda=parseFloat(cfg.perda)||4;
@@ -648,7 +666,7 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
                     return (
                       <tr key={p.id} style={{background: 'color-mix(in srgb, var(--danger) 5%, transparent)'}}>
                         <td><input className="t-inp txt" value={p.nome} onChange={e=>upd(p.id, {nome: e.target.value})} style={{color:'var(--danger)'}}/></td>
-                        <td><input className="t-inp mono" type="time" value={p.hSim} onChange={e=>upd(p.id, {hSim: e.target.value})} style={{color:'var(--danger)'}}/></td>
+                        <td><TimeCell value={p.hSim} onCommit={v=>upd(p.id, {hSim: v})} style={{color:'var(--danger)'}}/></td>
                         <td><div className="mono" style={{fontWeight:800, color:'var(--danger)', opacity:0.8}}>{hSala}</div></td>
                         <td><input className="t-inp mono" type="number" step="1" value={p.peso} onChange={e=>upd(p.id, {peso: e.target.value, doseReal:""})} style={{width: 60, color:'var(--danger)'}} /></td>
                         <td colSpan="5" style={{fontSize:11, color:'var(--danger)', fontWeight:800, textAlign:'center'}}>
@@ -666,7 +684,7 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
                   return (
                     <tr key={p.id}>
                       <td><input className="t-inp txt" value={p.nome} onChange={e=>upd(p.id, {nome: e.target.value})} placeholder={`Paciente ${i+1}`} /></td>
-                      <td><input className="t-inp mono" type="time" value={p.hSim} onChange={e=>upd(p.id, {hSim: e.target.value})} /></td>
+                      <td><TimeCell value={p.hSim} onCommit={v=>upd(p.id, {hSim: v})} /></td>
                       <td><div className="mono" style={{fontWeight:800, color:'var(--time)'}}>{hSala}</div></td>
                       <td><input className="t-inp mono" type="number" step="1" value={p.peso} onChange={e=>upd(p.id, {peso: e.target.value, doseReal:""})} placeholder="0" style={{width: 60}} /></td>
                       <td><input className="t-inp mono sm" type="number" step="0.01" value={p.fMin || cfg.fMin} onChange={e=>upd(p.id, {fMin: e.target.value})} style={{width: 65, color:'var(--muted)'}} /></td>
