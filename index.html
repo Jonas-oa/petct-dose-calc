@@ -217,8 +217,8 @@ function applyColor(c){
 }
 const {useState,useEffect,useMemo,useRef}=React;
 
-const APP_VERSION="3.3";
-const APP_BUILD="2026-07-29T12:17Z";
+const APP_VERSION="3.3.1";
+const APP_BUILD="2026-07-29T12:31Z";
 
 const ICONS = {
   lote: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>,
@@ -387,7 +387,25 @@ function recalc(lista, ac, vc, hC, t12, perda, fMinG, fMaxG) {
    não sugere aspirar mais do que a distribuição atual reservou para o paciente.
    Para uma dose já registrada, volta a mostrar o máximo clínico, evitando uma
    faixa invertida quando a dose real ficou abaixo do mínimo. */
-const tetoSugerido=(p,temReal)=>temReal?p.dPmax:Math.min(p.dPmax,p.doseAplicar);
+const tetoSugerido=(p,temReal)=>{
+  if(temReal){
+    const salvo=parseFloat(p.doseReferencia);
+    return salvo>0?Math.min(p.dPmax,salvo):p.dPmax;
+  }
+  return Math.min(p.dPmax,p.doseAplicar);
+};
+
+/* Ao registrar a primeira dose real, congela somente a referência visual que
+   estava na tela. O motor continua usando doseReal normalmente; ao apagar o
+   registro, a referência congelada também é removida. */
+function atualizacaoDoseReal(p,valor){
+  const real=parseFloat(valor);
+  if(real>0){
+    const salva=parseFloat(p.doseReferencia);
+    return{doseReal:valor,doseReferencia:salva>0?salva:tetoSugerido(p,false)};
+  }
+  return{doseReal:valor,doseReferencia:""};
+}
 
 /* Uma dose registrada representa um fato físico: a calibração não pode ser
    movida para depois dela. A comparação usa a calibração anterior como
@@ -759,11 +777,11 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
                         <td><input className="t-inp txt" value={p.nome} onChange={e=>upd(p.id, {nome: e.target.value})} style={{color:'var(--danger)'}}/></td>
                         <td><TimeCell value={p.hSim} onCommit={v=>upd(p.id, {hSim: v})} style={{color:'var(--danger)'}}/></td>
                         <td><div className="mono" style={{fontWeight:800, color:'var(--danger)', opacity:0.8}}>{hSala}</div></td>
-                        <td><input className="t-inp mono" type="number" step="1" value={p.peso} onChange={e=>upd(p.id, {peso: e.target.value, doseReal:""})} style={{width: 60, color:'var(--danger)'}} /></td>
+                        <td><input className="t-inp mono" type="number" step="1" value={p.peso} onChange={e=>upd(p.id, {peso: e.target.value, doseReal:"", doseReferencia:""})} style={{width: 60, color:'var(--danger)'}} /></td>
                         <td colSpan="5" style={{fontSize:11, color:'var(--danger)', fontWeight:800, textAlign:'center'}}>
                           GUILHOTINADO • REQ: {f1(p.dPmin)} / DISP: {f1(p.doseRealExistente)} mCi
                         </td>
-                        <td><input className="t-inp mono" type="number" step="0.1" value={p.doseReal} onChange={e=>upd(p.id, {doseReal: e.target.value})} placeholder="—" style={{width: 70}} /></td>
+                        <td><input className="t-inp mono" type="number" step="0.1" value={p.doseReal} onChange={e=>upd(p.id, atualizacaoDoseReal(p,e.target.value))} placeholder="—" style={{width: 70}} /></td>
                         <td><button onClick={()=>del(p.id)} style={{background:'transparent', border:'none', color:'var(--danger)', cursor:'pointer', padding:8}}>{ICONS.trash}</button></td>
                       </tr>
                     )
@@ -777,7 +795,7 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
                       <td><input className="t-inp txt" value={p.nome} onChange={e=>upd(p.id, {nome: e.target.value})} placeholder={`Paciente ${i+1}`} /></td>
                       <td><TimeCell value={p.hSim} onCommit={v=>upd(p.id, {hSim: v})} /></td>
                       <td><div className="mono" style={{fontWeight:800, color:'var(--time)'}}>{hSala}</div></td>
-                      <td><input className="t-inp mono" type="number" step="1" value={p.peso} onChange={e=>upd(p.id, {peso: e.target.value, doseReal:""})} placeholder="0" style={{width: 60}} /></td>
+                      <td><input className="t-inp mono" type="number" step="1" value={p.peso} onChange={e=>upd(p.id, {peso: e.target.value, doseReal:"", doseReferencia:""})} placeholder="0" style={{width: 60}} /></td>
                       <td><input className="t-inp mono sm" type="number" step="0.01" value={p.fMin || cfg.fMin} onChange={e=>upd(p.id, {fMin: e.target.value})} style={{width: 65, color:'var(--muted)'}} /></td>
                       <td><input className="t-inp mono sm" type="number" step="0.01" value={p.fMax || cfg.fMax} onChange={e=>upd(p.id, {fMax: e.target.value})} style={{width: 65, color:'var(--muted)'}} /></td>
                       <td>
@@ -786,7 +804,7 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
                       </td>
                       <td><div className="mono" style={{fontWeight:800, color:'var(--success)'}}>{f1(p.disp)}</div></td>
                       <td><div className="mono" style={{fontWeight:700, color:'var(--text-soft)'}}>{vol != null && !isNaN(vol) ? vol.toFixed(2) : '—'}</div></td>
-                      <td style={{background: temReal ? 'var(--c-light)' : 'transparent'}}><input className="t-inp mono" type="number" step="0.1" value={p.doseReal} onChange={e=>upd(p.id, {doseReal: e.target.value})} placeholder="—" style={{width: 70, background: temReal ? 'var(--surface)' : 'var(--alt)'}} /></td>
+                      <td style={{background: temReal ? 'var(--c-light)' : 'transparent'}}><input className="t-inp mono" type="number" step="0.1" value={p.doseReal} onChange={e=>upd(p.id, atualizacaoDoseReal(p,e.target.value))} placeholder="—" style={{width: 70, background: temReal ? 'var(--surface)' : 'var(--alt)'}} /></td>
                       <td><button onClick={()=>del(p.id)} style={{background:'transparent', border:'none', color:'var(--danger)', cursor:'pointer', padding:8}}>{ICONS.trash}</button></td>
                     </tr>
                   )
@@ -902,7 +920,7 @@ function PatientCard({p,isN,cor,acNum,vcNum,t12,hCalib,calibMin,onUpdate,onDelet
     setHora(novoMin); setHh(String(h).padStart(2,'0')); setMm(String(m).padStart(2,'0'));
   }
   function handleBlurHora(e){ const next=e.relatedTarget; if(!e.currentTarget.contains(next)) confirmarHora(); }
-  function handleRealChange(val){onUpdate(p.id,{doseReal:val});}
+  function handleRealChange(val){onUpdate(p.id,atualizacaoDoseReal(p,val));}
 
   return(
     <div className={`card fi ${hmC}`} style={{border:isN?`2px solid ${cor}`:undefined}}>
@@ -922,7 +940,7 @@ function PatientCard({p,isN,cor,acNum,vcNum,t12,hCalib,calibMin,onUpdate,onDelet
             ) : <span style={{fontSize:16,fontWeight:700,color:isGuilhotina?'var(--danger)':'var(--text)'}}>{p.hSim}</span>}
             
             <span style={{fontSize: exp ? 14 : 12, color:'var(--muted)', fontWeight:600, display:'flex', alignItems:'center', marginLeft: 10}}>
-              {exp ? <><input className="inp-clean" type="number" inputMode="decimal" value={peso} onChange={e=>setPeso(e.target.value)} onBlur={()=>onUpdate(p.id, peso!==p.peso?{peso, doseReal:""}:{peso})} onClick={e=>e.stopPropagation()} style={{width: 44, textAlign:'center', margin:'0 4px', fontSize:15, fontWeight:700, color:'var(--text)'}} /> kg</> : <span>{' • '}{p.peso} kg</span>}
+              {exp ? <><input className="inp-clean" type="number" inputMode="decimal" value={peso} onChange={e=>setPeso(e.target.value)} onBlur={()=>onUpdate(p.id, peso!==p.peso?{peso, doseReal:"", doseReferencia:""}:{peso})} onClick={e=>e.stopPropagation()} style={{width: 44, textAlign:'center', margin:'0 4px', fontSize:15, fontWeight:700, color:'var(--text)'}} /> kg</> : <span>{' • '}{p.peso} kg</span>}
             </span>
           </div>
         </div>
@@ -955,11 +973,11 @@ function PatientCard({p,isN,cor,acNum,vcNum,t12,hCalib,calibMin,onUpdate,onDelet
             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:18}}>
               <div style={{background:'var(--alt)', border:'1px solid var(--border)', borderRadius:14, padding:'10px 14px'}}>
                 <div style={{fontSize:10, fontWeight:800, color:'var(--muted)', textTransform:'uppercase'}}>{lang.doseMin} (mCi/kg)</div>
-                <input className="inp-clean" type="number" step="0.01" value={fMin} onChange={e=>setFMin(e.target.value)} onBlur={()=>onUpdate(p.id, fMin!==(p.fMin||"0.08")?{fMin, doseReal:""}:{fMin})} style={{fontSize:16, fontWeight:700, color:'var(--text)', width:'100%', marginTop:4}} onClick={e=>e.stopPropagation()}/>
+                <input className="inp-clean" type="number" step="0.01" value={fMin} onChange={e=>setFMin(e.target.value)} onBlur={()=>onUpdate(p.id, fMin!==(p.fMin||"0.08")?{fMin, doseReal:"", doseReferencia:""}:{fMin})} style={{fontSize:16, fontWeight:700,color:'var(--text)',width:'100%',marginTop:4}} onClick={e=>e.stopPropagation()}/>
               </div>
               <div style={{background:'var(--alt)', border:'1px solid var(--border)', borderRadius:14, padding:'10px 14px'}}>
                 <div style={{fontSize:10, fontWeight:800, color:'var(--muted)', textTransform:'uppercase'}}>{lang.doseMax} (mCi/kg)</div>
-                <input className="inp-clean" type="number" step="0.01" value={fMax} onChange={e=>setFMax(e.target.value)} onBlur={()=>onUpdate(p.id, fMax!==(p.fMax||"0.12")?{fMax, doseReal:""}:{fMax})} style={{fontSize:16, fontWeight:700, color:'var(--text)', width:'100%', marginTop:4}} onClick={e=>e.stopPropagation()}/>
+                <input className="inp-clean" type="number" step="0.01" value={fMax} onChange={e=>setFMax(e.target.value)} onBlur={()=>onUpdate(p.id, fMax!==(p.fMax||"0.12")?{fMax, doseReal:"", doseReferencia:""}:{fMax})} style={{fontSize:16,fontWeight:700,color:'var(--text)',width:'100%',marginTop:4}} onClick={e=>e.stopPropagation()}/>
               </div>
             </div>
             {!isGuilhotina && (
