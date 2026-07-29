@@ -375,9 +375,16 @@ function recalc(lista, ac, vc, hC, t12, perda, fMinG, fMaxG) {
     tA = p.hSim;
   }
 
-  const atvFinal = atvCorrente; 
+  const atvFinal = atvCorrente;
   return { lista: lc, atvFinal };
 }
+
+/* Limite exibido acima da dose programada.
+   A janela clínica por peso continua disponível no tooltip, mas o valor visível
+   não sugere aspirar mais do que a distribuição atual reservou para o paciente.
+   Para uma dose já registrada, volta a mostrar o máximo clínico, evitando uma
+   faixa invertida quando a dose real ficou abaixo do mínimo. */
+const tetoSugerido=(p,temReal)=>temReal?p.dPmax:Math.min(p.dPmax,p.doseAplicar);
 
 function getRisco(doseAplicar,dPmin,dPmax,temReal,doseRealVal){
   if(temReal&&doseRealVal<dPmin-0.05)return'danger';
@@ -690,7 +697,7 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
                       <td><input className="t-inp mono sm" type="number" step="0.01" value={p.fMin || cfg.fMin} onChange={e=>upd(p.id, {fMin: e.target.value})} style={{width: 65, color:'var(--muted)'}} /></td>
                       <td><input className="t-inp mono sm" type="number" step="0.01" value={p.fMax || cfg.fMax} onChange={e=>upd(p.id, {fMax: e.target.value})} style={{width: 65, color:'var(--muted)'}} /></td>
                       <td>
-                        {parseFloat(p.peso) > 0 && <div style={{fontSize: 10, color: (p.dPmaxReal < p.dPmax - 0.05) ? 'var(--warning)' : 'var(--muted)', fontWeight: 700, marginBottom: 2}}>{f1(p.dPmin)} ~ {f1(p.dPmaxReal)}</div>}
+                        {parseFloat(p.peso) > 0 && <div title={`${lang.janelaClinica}: ${f1(p.dPmin)} ~ ${f1(p.dPmax)} mCi`} style={{fontSize: 10, color: (tetoSugerido(p,temReal) < p.dPmax - 0.05) ? 'var(--warning)' : 'var(--muted)', fontWeight: 700, marginBottom: 2}}>{f1(p.dPmin)} ~ {f1(tetoSugerido(p,temReal))}</div>}
                         <div className="mono" style={{fontWeight:900, color: dColor}}>{f1(p.doseAplicar)}</div>
                       </td>
                       <td><div className="mono" style={{fontWeight:800, color:'var(--success)'}}>{f1(p.disp)}</div></td>
@@ -884,7 +891,7 @@ function PatientCard({p,isN,cor,acNum,vcNum,t12,hCalib,calibMin,onUpdate,onDelet
               </>
             )}
             <div style={{marginTop:10,display:'flex',justifyContent:'center',gap:16}}>
-              {[{l:'mín',v:p.dPmin,lim:false},{l:'máx',v:p.dPmaxReal,lim:p.dPmaxReal<p.dPmax-0.05}].map(({l,v,lim})=>(
+              {[{l:'mín',v:p.dPmin,lim:false},{l:'máx',v:tetoSugerido(p,temReal),lim:tetoSugerido(p,temReal)<p.dPmax-0.05}].map(({l,v,lim})=>(
                 <span key={l} style={{fontSize:11,color:lim?'var(--warning)':'var(--muted)',fontWeight:600}}>{l} <span className="mono" style={{fontWeight:800,color:lim?'var(--warning)':'var(--text)',opacity:lim?1:.7}}>{f1(v)}</span></span>
               ))}
               <span style={{fontSize:11,color:'var(--muted)',fontWeight:600}}>mCi</span>
@@ -1232,7 +1239,7 @@ const LANGS_DICT={
     configuracoes:"Configurações",idioma:"Idioma",aparencia:"Aparência",modoEscuro:"Modo Escuro",corTema:"Cor do Tema",vibracao:"Vibração",
     modoExibicao: "Modo de Exibição", modoTabela: "Tabela Dinâmica", modoCartoes: "Cartões",
     nomeInstituicao:"Nome da Instituição",clinicaPlaceholder:"Clínica Nuclear…",
-    parametros:"Parâmetros",janelaDose:"Janela de Dose",doseMin:"Mínimo",doseMax:"Máximo",
+    parametros:"Parâmetros",janelaDose:"Janela de Dose",doseMin:"Mínimo",doseMax:"Máximo",janelaClinica:"Janela clínica pelo peso",
     captacao:"Captação (min)",gapInjecao:"Gap Injeção (min)",sobre:"Sobre",
     guiaComoUsar:"Como Usar",
     guiaPasso1Tit:"Calibração do Frasco", guiaPasso1Txt:"No topo da tela Tabela ou na aba Lote, insira a Atividade inicial (mCi), o Volume (mL) e o Horário em que o frasco foi calibrado.",
@@ -1269,7 +1276,7 @@ const LANGS_DICT={
     configuracoes:"Settings",idioma:"Language",aparencia:"Appearance",modoEscuro:"Dark Mode",corTema:"Theme Color",vibracao:"Vibration",
     modoExibicao: "View Mode", modoTabela: "Data Table", modoCartoes: "Cards",
     nomeInstituicao:"Institution",clinicaPlaceholder:"Clinic...",
-    parametros:"Parameters",janelaDose:"Dose Window",doseMin:"Minimum",doseMax:"Maximum",
+    parametros:"Parameters",janelaDose:"Dose Window",doseMin:"Minimum",doseMax:"Maximum",janelaClinica:"Clinical window by weight",
     captacao:"Uptake (min)",gapInjecao:"Injection Gap (min)",sobre:"About",
     guiaComoUsar:"How to Use",
     guiaPasso1Tit:"Vial Calibration", guiaPasso1Txt:"Enter the initial Activity (mCi), Volume (mL), and Calibration Time of the vial.",
@@ -1306,7 +1313,7 @@ const LANGS_DICT={
     configuracoes:"Configuración",idioma:"Idioma",aparencia:"Apariencia",modoEscuro:"Modo Oscuro",corTema:"Color Tema",vibracao:"Vibración",
     modoExibicao: "Modo de Vista", modoTabela: "Tabla", modoCartoes: "Tarjetas",
     nomeInstituicao:"Institución",clinicaPlaceholder:"Clínica...",
-    parametros:"Parámetros",janelaDose:"Ventana de Dosis",doseMin:"Mínimo",doseMax:"Máximo",
+    parametros:"Parámetros",janelaDose:"Ventana de Dosis",doseMin:"Mínimo",doseMax:"Máximo",janelaClinica:"Ventana clínica por peso",
     captacao:"Captación (min)",gapInjecao:"Gap Inyección (min)",sobre:"Acerca de",
     guiaComoUsar:"Cómo Usar",
     guiaPasso1Tit:"Calibración del Vial", guiaPasso1Txt:"Ingresa la Actividad (mCi) inicial, el Volumen (mL) y la Hora de Calibración del vial.",
