@@ -1283,59 +1283,124 @@ function TelaCalc({cor,ativa,onFechar,lang}){
 function PrintPDF({cfg,lista,totReal,restante,efic,cor,lang}){
   const acN=parseFloat(cfg.aCalib)||0; const vcN=parseFloat(cfg.vCalib)||0;
   const t12=getT12(cfg.farmaco,cfg.mvCustom); const perda=parseFloat(cfg.perda)||4;
-  const uptake=parseInt(cfg.uptake)||60; const exame=parseInt(cfg.intervalo)||25; const tolerancia=uptake+exame;
+  const uptake=parseInt(cfg.uptake)||60; const intervalo=parseInt(cfg.intervalo)||25;
   const concI=(acN>0&&vcN>0)?acN/vcN:0;
   const fMnG=parseFloat(cfg.fMin)||0.08; const fMxG=parseFloat(cfg.fMax)||0.12;
-  const calibMin2=toMin(cfg.hCalib||"09:00"); const agora=toMin(nowt());
-  const aAtAgora=acN*Math.pow(0.5,(agora-calibMin2)/t12)*(1-perda/100);
-  const volTotal=lista.reduce((s,p)=>{
-    const d=p.doseAplicar||0; const dtI=getRelMin(p.hSim, cfg.hCalib);
-    const aAt=acN*Math.pow(0.5,dtI/t12)*(1-perda/100); const cAt=(vcN>0)?aAt/vcN:0;
+  const locale=lang._id==="en"?"en-US":lang._id==="es"?"es-ES":"pt-BR";
+  const agoraDoc=new Date(); const pad=n=>String(n).padStart(2,"0");
+  const docId=`PETCT-${agoraDoc.getFullYear()}${pad(agoraDoc.getMonth()+1)}${pad(agoraDoc.getDate())}-${pad(agoraDoc.getHours())}${pad(agoraDoc.getMinutes())}${pad(agoraDoc.getSeconds())}`;
+  const geradoEm=agoraDoc.toLocaleString(locale);
+  const pacientesAplicados=lista.filter(p=>parseFloat(p.doseReal)>0).length;
+  const totalAplicado=lista.reduce((s,p)=>s+(parseFloat(p.doseReal)||0),0);
+  const totalProgramado=lista.reduce((s,p)=>s+(parseFloat(p.doseAplicar)||0),0);
+  const volTotalAplicado=lista.reduce((s,p)=>{
+    const d=parseFloat(p.doseReal)||0; if(d<=0)return s;
+    const dtI=getRelMin(p.hSim,cfg.hCalib);
+    const aAt=acN*Math.pow(0.5,dtI/t12)*(1-perda/100);
+    const cAt=vcN>0?aAt/vcN:0;
     return s+(cAt>0?d/cAt:0);
   },0);
+  const eficienciaAplicada=acN>0?(totalAplicado/acN*100):0;
 
-  const TD={borderBottom:"1px solid #e2e8f0",padding:"5px 7px",textAlign:"left",fontSize:9};
-  const TH={...TD,background:"#f8fafc",color:"#64748b",fontWeight:800,textTransform:"uppercase",fontSize:8,textAlign:"center"};
+  const TD={border:"1px solid #000",padding:"5px 6px",textAlign:"left",fontSize:8.2,color:"#000",background:"#fff",verticalAlign:"middle"};
+  const TH={...TD,fontWeight:800,textTransform:"uppercase",fontSize:7.5,textAlign:"center"};
   const TDc={...TD,textAlign:"center"};
+  const SEC={fontSize:9,fontWeight:900,textTransform:"uppercase",letterSpacing:0.5,borderBottom:"2px solid #000",paddingBottom:3,marginBottom:5,marginTop:11,color:"#000"};
+  const infoRows=[
+    [[lang.isotopo,cfg.farmaco],[lang.idLote,cfg.lote||"—"]],
+    [[lang.pdfMeiaVida,`${t12.toFixed(2)} min`],[lang.pdfPerdaRF,`${perda}%`]],
+    [[lang.pdfCalibracao,`${dataHoje()} · ${cfg.hCalib||"—"}`],[lang.pdfAtividade,`${f1(acN)} mCi (${(acN*37).toFixed(0)} MBq)`]],
+    [[lang.pdfVolume2,vcN>0?`${vcN} mL`:"—"],[lang.pdfConcInicial,concI>0?`${concI.toFixed(2)} mCi/mL`:"—"]],
+    [[lang.pdfCaptacao,`${uptake} min`],[lang.gapInjecao,`${intervalo} min`]],
+    [[lang.doseMin,`${fMnG.toFixed(2)} mCi/kg`],[lang.doseMax,`${fMxG.toFixed(2)} mCi/kg`]]
+  ];
 
-  return <div style={{fontFamily:"Arial,sans-serif",color:"#0f172a",background:"#fff",width:"100%"}}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",borderBottom:`3px solid ${cor}`,paddingBottom:9,marginBottom:12}}>
-      <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <div style={{width:30,height:30,borderRadius:7,background:cor,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm-4.5 7.5a4.5 4.5 0 0 1 3-4.24V10h3v-1.74a4.5 4.5 0 0 1 3 4.24H14a2 2 0 0 0-4 0H7.5z"/></svg></div>
-        <div><div style={{fontSize:13,fontWeight:900,letterSpacing:"-0.5px"}}>PET-CT Dose</div>{cfg.instituicao&&<div style={{fontSize:8.5,color:cor,fontWeight:700}}>{cfg.instituicao}</div>}<div style={{fontSize:8,color:"#64748b"}}>{dataHoje()}</div></div>
-      </div>
-      <div style={{fontSize:8,textAlign:"right",lineHeight:1.8,color:"#334155"}}>
-        <div><b>{cfg.farmaco}</b> · {lang.pdfMeiaVida}: {t12} min · {lang.pdfPerdaRF}: {perda}%</div>
-        <div>{lang.pdfCalibracao}: {cfg.hCalib} · {f1(acN)} mCi{vcN>0?` · ${vcN} mL`:""} {cfg.lote?`· ${lang.pdfLote}: ${cfg.lote}`:""}</div>
+  return <div style={{fontFamily:"Arial,sans-serif",color:"#000",background:"#fff",width:"100%"}}>
+    <div style={{borderBottom:"3px solid #000",paddingBottom:8,marginBottom:8,textAlign:"center"}}>
+      <div style={{fontSize:15,fontWeight:900,letterSpacing:0.4}}>{lang.pdfTitulo}</div>
+      <div style={{fontSize:10,fontWeight:800,marginTop:3}}>{cfg.instituicao||lang.pdfInstituicaoNaoInformada}</div>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:7.8,marginTop:7,textAlign:"left"}}>
+        <span><b>{lang.pdfDataOperacao}:</b> {dataHoje()}</span>
+        <span><b>{lang.pdfDocumento}:</b> {docId}</span>
+        <span><b>{lang.pdfGeradoEm}:</b> {geradoEm}</span>
       </div>
     </div>
-    <table style={{width:"100%",borderCollapse:"collapse",border:"1px solid #e2e8f0",marginBottom:12}}>
-      <thead><tr>{["#",lang.pdfPaciente,lang.pdfPeso,lang.pdfEntradaSala,lang.pdfDoseInjetada,lang.pdfVolume,lang.pdfDoseMin,lang.pdfDoseMax].map(h=><th key={h} style={TH}>{h}</th>)}</tr></thead>
+
+    <div style={SEC}>{lang.pdfIdentificacaoLote}</div>
+    <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
       <tbody>
-        {!lista.length?<tr><td colSpan="8" style={{...TDc,padding:20,color:"#94a3b8"}}>{lang.pdfSemRegistros}</td></tr>
+        {infoRows.map((row,i)=><tr key={i}>
+          {row.map(([l,v])=><React.Fragment key={l}>
+            <td style={{...TD,width:"19%",fontWeight:800}}>{l}</td>
+            <td style={{...TD,width:"31%"}}>{v}</td>
+          </React.Fragment>)}
+        </tr>)}
+      </tbody>
+    </table>
+
+    <div style={SEC}>{lang.pdfRegistroPacientes}</div>
+    <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
+      <thead><tr>
+        <th style={{...TH,width:"3%"}}>#</th>
+        <th style={{...TH,width:"22%",textAlign:"left"}}>{lang.pdfPaciente}</th>
+        <th style={{...TH,width:"7%"}}>{lang.pdfPeso}</th>
+        <th style={{...TH,width:"8%"}}>{lang.horarioInjecao}</th>
+        <th style={{...TH,width:"8%"}}>{lang.pdfEntradaSala}</th>
+        <th style={{...TH,width:"11%"}}>{lang.pdfDoseProgramada}</th>
+        <th style={{...TH,width:"11%"}}>{lang.pdfDoseInjetada}</th>
+        <th style={{...TH,width:"9%"}}>{lang.pdfVolume}</th>
+        <th style={{...TH,width:"12%"}}>{lang.pdfFaixaReferencia}</th>
+        <th style={{...TH,width:"9%"}}>{lang.pdfStatus}</th>
+      </tr></thead>
+      <tbody>
+        {!lista.length?<tr><td colSpan="10" style={{...TDc,padding:18}}>{lang.pdfSemRegistros}</td></tr>
         :lista.map((p,i)=>{
-          const d=p.doseAplicar||0; const fmn=parseFloat(p.fMin)||fMnG; const fmx=parseFloat(p.fMax)||fMxG; const w=parseFloat(p.peso)||0;
-          const dtI=getRelMin(p.hSim, cfg.hCalib); const aAt=acN*Math.pow(0.5,dtI/t12)*(1-perda/100); const cAt=(vcN>0)?aAt/vcN:0;
-          const vol=cAt>0?d/cAt:0; const entrada=addMin(p.hSim,uptake); const doseOk=d>=(p.dPmin||w*fmn)-0.05;
-          return <tr key={p.id} style={{background:i%2?"#f8fafc":"#fff"}}>
-            <td style={{...TDc,fontWeight:800,color:"#64748b"}}>{i+1}</td><td style={{...TD,fontWeight:800}}>{p.nome}</td><td style={TDc}>{p.peso} kg</td>
-            <td style={{...TDc,fontWeight:800,color:cor}}>{entrada}</td><td style={{...TDc,fontWeight:900,color:doseOk?"#059669":"#dc2626"}}>{f1(d)} mCi</td>
-            <td style={{...TDc,color:"#0ea5e9",fontWeight:700}}>{vol>0?vol.toFixed(2)+" mL":"—"}</td>
-            <td style={{...TDc,color:"#64748b"}}>{f1(p.dPmin||w*fmn)}</td><td style={{...TDc,color:"#64748b"}}>{f1(p.dPmax||w*fmx)}</td>
+          const programada=parseFloat(p.doseAplicar)||0;
+          const aplicada=parseFloat(p.doseReal)||0; const temReal=aplicada>0;
+          const fmn=parseFloat(p.fMin)||fMnG; const fmx=parseFloat(p.fMax)||fMxG; const w=parseFloat(p.peso)||0;
+          const min=p.dPmin||w*fmn; const max=p.dPmax||w*fmx;
+          const dtI=getRelMin(p.hSim,cfg.hCalib); const aAt=acN*Math.pow(0.5,dtI/t12)*(1-perda/100); const cAt=vcN>0?aAt/vcN:0;
+          const vol=temReal&&cAt>0?aplicada/cAt:0; const entrada=addMin(p.hSim,uptake);
+          const conforme=temReal&&aplicada>=min-0.05&&aplicada<=max+0.05;
+          const status=!temReal?lang.pdfPendente:conforme?lang.pdfConforme:lang.pdfForaFaixa;
+          return <tr key={p.id}>
+            <td style={{...TDc,fontWeight:800}}>{i+1}</td>
+            <td style={{...TD,fontWeight:800}}>{p.nome||"—"}</td>
+            <td style={TDc}>{p.peso||"—"} kg</td>
+            <td style={{...TDc,fontWeight:800}}>{p.hSim||"—"}</td>
+            <td style={TDc}>{entrada}</td>
+            <td style={TDc}>{f1(programada)} mCi</td>
+            <td style={{...TDc,fontWeight:900}}>{temReal?`${f1(aplicada)} mCi`:"—"}</td>
+            <td style={TDc}>{vol>0?`${vol.toFixed(2)} mL`:"—"}</td>
+            <td style={TDc}>{f1(min)}–{f1(max)} mCi</td>
+            <td style={{...TDc,fontWeight:800}}>{status}</td>
           </tr>;
         })}
       </tbody>
     </table>
-    <div style={{display:"flex",gap:10}}>
-      <div style={{flex:1,border:"1px solid #e2e8f0",borderRadius:7,padding:"8px 10px"}}>
-        <div style={{fontSize:8,fontWeight:800,textTransform:"uppercase",color:"#64748b",marginBottom:6,borderBottom:"1px solid #e2e8f0",paddingBottom:3}}>{lang.pdfResumo}</div>
-        {[[lang.pacientes,lista.length],[lang.pdfDoseTotal,`${f1(totReal)} mCi`], [lang.pdfMbq,(totReal*37).toFixed(0)],[lang.pdfVolTotal,`${volTotal.toFixed(2)} mL`],[lang.pdfVolRestante,`${(vcN-volTotal).toFixed(2)} mL`],[lang.pdfAtivAgora,`${f1(aAtAgora)} mCi`]].map(([l,v])=>( <div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:8.5,marginBottom:2.5}}><span style={{color:"#64748b"}}>{l}:</span><span style={{fontWeight:700}}>{v}</span></div> ))}
-      </div>
-      <div style={{flex:1,border:"1px solid #e2e8f0",borderRadius:7,padding:"8px 10px"}}>
-        <div style={{fontSize:8,fontWeight:800,textTransform:"uppercase",color:"#64748b",marginBottom:6,borderBottom:"1px solid #e2e8f0",paddingBottom:3}}>{lang.pdfLote}</div>
-        {[[lang.pdfAtividade,`${f1(acN)} mCi`],[lang.pdfVolume2,vcN>0?`${vcN} mL`:"—"],[lang.pdfLote,cfg.lote||"—"],[lang.pdfCaptacao,`${uptake} min`],[lang.pdfExame,`${exame} min`],[lang.pdfTolerancia,`${tolerancia} min`]].map(([l,v])=>( <div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:8.5,marginBottom:2.5}}><span style={{color:"#64748b"}}>{l}:</span><span style={{fontWeight:700}}>{v}</span></div> ))}
-      </div>
+
+    <div style={SEC}>{lang.pdfConsolidacao}</div>
+    <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
+      <tbody>
+        {[
+          [[lang.pacientes,lista.length],[lang.pdfPacientesAplicados,`${pacientesAplicados}/${lista.length}`],[lang.pdfDoseProgramadaTotal,`${f1(totalProgramado)} mCi`]],
+          [[lang.pdfDoseAplicadaTotal,`${f1(totalAplicado)} mCi`],[lang.pdfMbq,`${(totalAplicado*37).toFixed(0)} MBq`],[lang.pdfVolTotal,`${volTotalAplicado.toFixed(2)} mL`]],
+          [[lang.pdfVolRestante,`${Math.max(vcN-volTotalAplicado,0).toFixed(2)} mL`],[lang.pdfSaldoCalculado,`${f1(restante)} mCi`],[lang.pdfEficienciaAplicada,`${eficienciaAplicada.toFixed(1)}%`]]
+        ].map((row,i)=><tr key={i}>{row.map(([l,v])=><td key={l} style={{...TD,width:"33.33%"}}><b>{l}:</b> {v}</td>)}</tr>)}
+      </tbody>
+    </table>
+
+    <div style={SEC}>{lang.pdfResponsabilidade}</div>
+    <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:12,marginTop:18,fontSize:8.5}}>
+      <div style={{borderTop:"1px solid #000",paddingTop:4,textAlign:"center"}}>{lang.pdfNomeResponsavel}</div>
+      <div style={{borderTop:"1px solid #000",paddingTop:4,textAlign:"center"}}>{lang.pdfRegistroProfissional}</div>
+      <div style={{borderTop:"1px solid #000",paddingTop:4,textAlign:"center"}}>{lang.pdfDataAssinatura}</div>
     </div>
+    <div style={{borderTop:"1px solid #000",marginTop:24,paddingTop:4,textAlign:"center",fontSize:8.5}}>{lang.pdfAssinatura}</div>
+
+    <div style={SEC}>{lang.pdfObservacoes}</div>
+    <div style={{height:34,border:"1px solid #000"}}/>
+    <div style={{fontSize:7.2,lineHeight:1.35,marginTop:7,borderTop:"1px solid #000",paddingTop:5}}>{lang.pdfNotaAuditoria}</div>
   </div>;
 }
 
@@ -1372,7 +1437,11 @@ const LANGS_DICT={
     administrado:"Administrado",restante:"Restante",calibrado:"Calibrado",pacientes:"Pacientes",
     calcDecaimento:"Calculadora",atividadeInicial:"Atividade Inicial (mCi)",horaInicial:"Hora Inicial",horaAlvo:"Hora Alvo",resultado:"Resultado",decorrido:"Decorrido",fator:"Fator",
     pdfEntradaSala:"Entrada",pdfDoseInjetada:"Injetada",pdfVolume:"Volume",pdfFator:"Fator",pdfDoseMin:"Dose Mín",pdfDoseMax:"Dose Máx",
-    pdfPaciente:"Paciente",pdfPeso:"Peso",pdfResumo:"Resumo",pdfLote:"Lote",pdfAssinatura:"Assinatura",pdfResponsavel:"Responsável",pdfSemRegistros:"Sem registros.",
+    pdfPaciente:"Paciente",pdfPeso:"Peso",pdfResumo:"Resumo",pdfLote:"Lote",pdfAssinatura:"Assinatura do responsável",pdfResponsavel:"Responsável",pdfSemRegistros:"Sem registros.",
+    pdfTitulo:"Registro de Operação de Radiofármaco PET-CT",pdfInstituicaoNaoInformada:"Instituição não informada",pdfDataOperacao:"Data da operação",pdfDocumento:"Documento",pdfGeradoEm:"Gerado em",
+    pdfIdentificacaoLote:"Identificação do lote e parâmetros",pdfRegistroPacientes:"Registro individual de pacientes",pdfConsolidacao:"Consolidação da operação",pdfResponsabilidade:"Identificação e responsabilidade profissional",
+    pdfDoseProgramada:"Programada",pdfDoseProgramadaTotal:"Dose programada",pdfDoseAplicadaTotal:"Dose aplicada",pdfFaixaReferencia:"Faixa de referência",pdfStatus:"Situação",pdfPendente:"Pendente",pdfConforme:"Conforme",pdfForaFaixa:"Fora da faixa",
+    pdfPacientesAplicados:"Doses registradas",pdfSaldoCalculado:"Saldo calculado",pdfEficienciaAplicada:"Eficiência aplicada",pdfNomeResponsavel:"Nome completo do responsável",pdfRegistroProfissional:"Registro profissional",pdfDataAssinatura:"Data",pdfObservacoes:"Observações",pdfNotaAuditoria:"Documento gerado a partir dos dados registrados no aplicativo. A conferência, validação e assinatura são de responsabilidade do profissional responsável.",
     pdfDoseTotal:"Dose total",pdfMbq:"MBq",pdfVolTotal:"Vol. total",pdfVolRestante:"Vol. restante",
     pdfAtivAgora:"Ativ. agora",pdfAtividade:"Atividade",pdfVolume2:"Volume",pdfCaptacao:"Captação",pdfExame:"Exame",pdfTolerancia:"Tolerância",pdfMeiaVida:"Meia-vida",pdfPerdaRF:"Perda RF",pdfCalibracao:"Calibração",pdfConcInicial:"Conc. inicial",
     versaoBuild:"Build",versaoDesatualizada:"Versão nova disponível. Este aparelho está com uma cópia antiga.",versaoRecarregar:"Atualizar agora",
@@ -1410,7 +1479,11 @@ const LANGS_DICT={
     administrado:"Administered",restante:"Remaining",calibrado:"Calibrated",pacientes:"Patients",
     calcDecaimento:"Calculator",atividadeInicial:"Init. Act. (mCi)",horaInicial:"Start Time",horaAlvo:"Target Time",resultado:"Result",decorrido:"Elapsed",fator:"Factor",
     pdfEntradaSala:"Entry",pdfDoseInjetada:"Injected",pdfVolume:"Volume",pdfFator:"Factor",pdfDoseMin:"Min Dose",pdfDoseMax:"Max Dose",
-    pdfPaciente:"Patient",pdfPeso:"Weight",pdfResumo:"Summary",pdfLote:"Batch",pdfAssinatura:"Signature",pdfResponsavel:"Supervisor",pdfSemRegistros:"No records.",
+    pdfPaciente:"Patient",pdfPeso:"Weight",pdfResumo:"Summary",pdfLote:"Batch",pdfAssinatura:"Responsible professional signature",pdfResponsavel:"Supervisor",pdfSemRegistros:"No records.",
+    pdfTitulo:"PET-CT Radiopharmaceutical Operation Record",pdfInstituicaoNaoInformada:"Institution not provided",pdfDataOperacao:"Operation date",pdfDocumento:"Document",pdfGeradoEm:"Generated at",
+    pdfIdentificacaoLote:"Batch identification and parameters",pdfRegistroPacientes:"Individual patient record",pdfConsolidacao:"Operation consolidation",pdfResponsabilidade:"Professional identification and responsibility",
+    pdfDoseProgramada:"Planned",pdfDoseProgramadaTotal:"Planned dose",pdfDoseAplicadaTotal:"Administered dose",pdfFaixaReferencia:"Reference range",pdfStatus:"Status",pdfPendente:"Pending",pdfConforme:"Compliant",pdfForaFaixa:"Out of range",
+    pdfPacientesAplicados:"Recorded doses",pdfSaldoCalculado:"Calculated balance",pdfEficienciaAplicada:"Applied efficiency",pdfNomeResponsavel:"Responsible professional full name",pdfRegistroProfissional:"Professional registration",pdfDataAssinatura:"Date",pdfObservacoes:"Notes",pdfNotaAuditoria:"Document generated from data recorded in the application. Verification, validation, and signature are the responsibility of the designated professional.",
     pdfDoseTotal:"Total dose",pdfMbq:"MBq",pdfVolTotal:"Total vol.",pdfVolRestante:"Remaining vol.",
     pdfAtivAgora:"Act. now",pdfAtividade:"Activity",pdfVolume2:"Volume",pdfCaptacao:"Uptake",pdfExame:"Exam",pdfTolerancia:"Tolerance",pdfMeiaVida:"Half-life",pdfPerdaRF:"RF Loss",pdfCalibracao:"Calibration",pdfConcInicial:"Initial conc.",
     versaoBuild:"Build",versaoDesatualizada:"New version available. This device is running an old copy.",versaoRecarregar:"Update now",
@@ -1448,7 +1521,11 @@ const LANGS_DICT={
     administrado:"Administrado",restante:"Restante",calibrado:"Calibrado",pacientes:"Pacientes",
     calcDecaimento:"Calculadora",atividadeInicial:"Activ. Inicial (mCi)",horaInicial:"Hora Inicial",horaAlvo:"Hora Objetivo",resultado:"Resultado",decorrido:"Transcurrido",fator:"Factor",
     pdfEntradaSala:"Entrada",pdfDoseInjetada:"Inyectada",pdfVolume:"Volumen",pdfFator:"Factor",pdfDoseMin:"Dosis Mín",pdfDoseMax:"Dosis Máx",
-    pdfPaciente:"Paciente",pdfPeso:"Peso",pdfResumo:"Resumen",pdfLote:"Lote",pdfAssinatura:"Firma",pdfResponsavel:"Responsable",pdfSemRegistros:"Sin registros.",
+    pdfPaciente:"Paciente",pdfPeso:"Peso",pdfResumo:"Resumen",pdfLote:"Lote",pdfAssinatura:"Firma del responsable",pdfResponsavel:"Responsable",pdfSemRegistros:"Sin registros.",
+    pdfTitulo:"Registro de Operación de Radiofármaco PET-CT",pdfInstituicaoNaoInformada:"Institución no informada",pdfDataOperacao:"Fecha de operación",pdfDocumento:"Documento",pdfGeradoEm:"Generado en",
+    pdfIdentificacaoLote:"Identificación del lote y parámetros",pdfRegistroPacientes:"Registro individual de pacientes",pdfConsolidacao:"Consolidación de la operación",pdfResponsabilidade:"Identificación y responsabilidad profesional",
+    pdfDoseProgramada:"Programada",pdfDoseProgramadaTotal:"Dosis programada",pdfDoseAplicadaTotal:"Dosis aplicada",pdfFaixaReferencia:"Rango de referencia",pdfStatus:"Situación",pdfPendente:"Pendiente",pdfConforme:"Conforme",pdfForaFaixa:"Fuera de rango",
+    pdfPacientesAplicados:"Dosis registradas",pdfSaldoCalculado:"Saldo calculado",pdfEficienciaAplicada:"Eficiencia aplicada",pdfNomeResponsavel:"Nombre completo del responsable",pdfRegistroProfissional:"Registro profesional",pdfDataAssinatura:"Fecha",pdfObservacoes:"Observaciones",pdfNotaAuditoria:"Documento generado a partir de los datos registrados en la aplicación. La revisión, validación y firma son responsabilidad del profesional responsable.",
     pdfDoseTotal:"Dosis total",pdfMbq:"MBq",pdfVolTotal:"Vol. total",pdfVolRestante:"Vol. restante",
     pdfAtivAgora:"Act. ahora",pdfAtividade:"Actividad",pdfVolume2:"Volumen",pdfCaptacao:"Captación",pdfExame:"Examen",pdfTolerancia:"Tolerancia",pdfMeiaVida:"Semivida",pdfPerdaRF:"Pérd. RF",pdfCalibracao:"Calibración",pdfConcInicial:"Conc. inicial",
     versaoBuild:"Build",versaoDesatualizada:"Nueva versión disponible. Este dispositivo tiene una copia antigua.",versaoRecarregar:"Actualizar ahora",
@@ -1513,11 +1590,18 @@ function App(){
       const cv=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:"#ffffff"});
       const{jsPDF}=window.jspdf;
       const pdf=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+      pdf.setProperties({title:"Registro de Operação PET-CT",subject:"Registro técnico para arquivo e auditoria",creator:"PET-CT Dose Pro"});
       const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight(),mg=8;
       const iw=pw-mg*2,ih=(cv.height*iw)/cv.width;
       if(ih<=ph-mg*2){pdf.addImage(cv.toDataURL("image/jpeg",1.0),"JPEG",mg,mg,iw,ih);}
       else{let r=ih,sy=0;while(r>0){const sh=Math.min(r,ph-mg*2),sc=document.createElement("canvas");sc.width=cv.width;sc.height=sh*(cv.width/iw);sc.getContext("2d").drawImage(cv,0,sy*(cv.width/iw),cv.width,sh*(cv.width/iw),0,0,cv.width,sh*(cv.width/iw));if(sy>0)pdf.addPage();pdf.addImage(sc.toDataURL("image/jpeg",1.0),"JPEG",mg,mg,iw,sh);sy+=sh;r-=sh;}}
-      pdf.save(`PETCT_${new Date().toLocaleDateString("pt-BR").replace(/\//g,"-")}.pdf`);
+      const totalPaginas=pdf.getNumberOfPages();
+      for(let pagina=1;pagina<=totalPaginas;pagina++){pdf.setPage(pagina);pdf.setTextColor(0,0,0);pdf.setFontSize(7);pdf.text(`${pagina}/${totalPaginas}`,pw/2,ph-3,{align:"center"});}
+      const instante=new Date(); const padArq=n=>String(n).padStart(2,"0");
+      const dataArq=`${instante.getFullYear()}-${padArq(instante.getMonth()+1)}-${padArq(instante.getDate())}`;
+      const horaArq=`${padArq(instante.getHours())}${padArq(instante.getMinutes())}${padArq(instante.getSeconds())}`;
+      const loteArq=String(cfg.lote||"sem-lote").trim().replace(/[^a-zA-Z0-9_-]+/g,"-");
+      pdf.save(`PETCT_${loteArq}_${dataArq}_${horaArq}.pdf`);
       showToast(lang.pdfSalvo);
     }catch(e){showToast(lang.pdfErro);}
     finally{el.style.cssText="display:none";setSalvandoPdf(false);}
