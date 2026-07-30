@@ -680,8 +680,8 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
         <div style={{fontSize:12,color:"var(--muted)",fontWeight:600,marginTop:2}}>{dataHoje()}</div>
       </div>
       <div style={{display:'flex',gap:8}}>
-        <button onClick={()=>{vib();onCalc();}} className="ghost" style={{padding:'0 12px'}} title={lang.navCalc}>{ICONS.calc}</button>
-        <button onClick={()=>{vib();onSalvar();}} disabled={salvandoPdf} className="ghost" style={{padding:'0 12px'}} title={lang.salvarPdf}>{salvandoPdf ? "⏳" : ICONS.pdf}</button>
+        <button onClick={()=>{vib();onCalc();}} className="ghost" style={{padding:'0 14px',fontWeight:900,fontSize:12,letterSpacing:0.5,minWidth:54}} title={lang.navCalc}>CALC</button>
+        <button onClick={()=>{vib();onSalvar();}} disabled={salvandoPdf} className="ghost" style={{padding:'0 14px',fontWeight:900,fontSize:12,letterSpacing:0.5,minWidth:54}} title={lang.salvarPdf}>{salvandoPdf ? "..." : "PDF"}</button>
         <button onClick={()=>{vib();setMenuOpen(true);}} className="ghost" style={{padding:'0 12px'}} title={lang.configuracoes}>{ICONS.settings}</button>
       </div>
     </div>
