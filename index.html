@@ -691,10 +691,13 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
       {/* PAINEL ESQUERDO: Configurações e Frasco */}
       <div className="split-left" style={{ width: window.innerWidth >= 1024 ? leftWidth : '100%' }}>
         <div className="card" style={{padding:16, border:'none', marginBottom:16}}>
-          <div className="g3" style={{marginBottom:12}}>
+          <div className="g2" style={{marginBottom:12}}>
             <Fld label={lang.radiofarmacoLote}><select className="inp" value={cfg.farmaco} onChange={e=>setCfg({...cfg,farmaco:e.target.value})} style={{fontWeight:700, height:42}}>{Object.keys(FARMACOS).map(f=><option key={f}>{f}</option>)}</select></Fld>
-            <Fld label={lang.meiaVida}>{cfg.farmaco==="Outro"?<input className="inp" type="number" value={cfg.mvCustom} onChange={e=>setCfg({...cfg,mvCustom:e.target.value})} step="0.01" style={{height:42}}/>:<div className="inp" style={{background:"var(--bg)",color:"var(--muted)",display:"flex",alignItems:"center",borderColor:"transparent", height:42}}>{t12.toFixed(1)} min</div>}</Fld>
+            <Fld label={cfg.farmaco==="Outro"?lang.meiaVidaMin:lang.meiaVida}>{cfg.farmaco==="Outro"?<input className="inp" type="number" value={cfg.mvCustom} onChange={e=>setCfg({...cfg,mvCustom:e.target.value})} step="0.01" style={{height:42}}/>:<div className="inp" style={{background:"var(--bg)",color:"var(--muted)",display:"flex",alignItems:"center",borderColor:"transparent", height:42}}>{t12.toFixed(1)} min</div>}</Fld>
+          </div>
+          <div className="g2" style={{marginBottom:12}}>
             <Fld label={lang.perdaSeringa}><input className="inp" type="number" value={cfg.perda} onChange={e=>setCfg({...cfg,perda:e.target.value})} step="0.5" style={{height:42}}/></Fld>
+            <Fld label={lang.idLote}><input className="inp" value={cfg.lote} onChange={e=>setCfg({...cfg,lote:e.target.value})} placeholder={lang.opcional} style={{height:42}}/></Fld>
           </div>
           <div className="g3" style={{alignItems:'end'}}>
             <Fld label={lang.horario}><input className="inp mono" type="time" value={cfg.hCalib} onChange={e=>setCfg({...cfg,hCalib:e.target.value})} style={{fontWeight:800, height:46}}/></Fld>
