@@ -1,4 +1,4 @@
-const CACHE='petct-v7';
+const CACHE='petct-v8';
 const PRECACHE=[
   '/',
   'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',
