@@ -217,8 +217,8 @@ function applyColor(c){
 }
 const {useState,useEffect,useMemo,useRef}=React;
 
-const APP_VERSION="3.3.1";
-const APP_BUILD="2026-07-29T12:31Z";
+const APP_VERSION="3.4.0";
+const APP_BUILD="2026-08-07T12:00Z";
 
 const ICONS = {
   lote: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>,
@@ -252,7 +252,7 @@ class ErrorBoundary extends React.Component{
 
 const FARMACOS={"Flúor-18 (¹⁸F)":109.77,"Gálio-68 (⁶⁸Ga)":67.71,"Carbono-11 (¹¹C)":20.39,"Nitrogênio-13 (¹³N)":9.97,"Oxigênio-15 (¹⁵O)":2.04,"Outro":110};
 const UPTAKE=60;
-const CFG0={farmaco:"Flúor-18 (¹⁸F)",mvCustom:"109.77",perda:"4",hCalib:"08:00",aCalib:"",vCalib:"",lote:"",uptake:60,intervalo:25,instituicao:"",fMin:"0.08",fMax:"0.12"};
+const CFG0={farmaco:"Flúor-18 (¹⁸F)",mvCustom:"109.77",perda:"4",hCalib:"08:00",aCalib:"",vCalib:"",lote:"",uptake:60,intervalo:25,duracaoExame:25,instituicao:"",fMin:"0.08",fMax:"0.12"};
 
 const getT12=(f,mv)=>f==="Outro"?(parseFloat(mv)||110):(FARMACOS[f]||109.77);
 const toMin=t=>{if(!t||!t.includes(':'))return 0;const[h,m]=t.split(":").map(Number);return(h||0)*60+(m||0);};
@@ -265,6 +265,19 @@ const nowt=()=>{const n=new Date();return`${String(n.getHours()).padStart(2,"0")
 const dataHoje=()=>new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
 let _vib=true;
 const vib=()=>_vib&&navigator.vibrate&&navigator.vibrate(30);
+
+const horaValida=t=>{
+  if(typeof t!=='string'||!/^\d{2}:\d{2}$/.test(t))return false;
+  const[h,m]=t.split(':').map(Number);
+  return h>=0&&h<24&&m>=0&&m<60;
+};
+const temDoseRegistrada=p=>!isNaN(parseFloat(p&&p.doseReal))&&parseFloat(p.doseReal)>0;
+// hSim permanece como horário previsto. Depois do registro, os cálculos físicos
+// usam hInjReal; registros antigos sem esse campo continuam compatíveis, mas são
+// identificados na interface como estimados a partir do horário previsto.
+const horaInjecaoEfetiva=p=>temDoseRegistrada(p)&&horaValida(p.hInjReal)?p.hInjReal:p.hSim;
+const horaEntradaSala=(p,uptake)=>addMin(horaInjecaoEfetiva(p),Number(uptake)||UPTAKE);
+const horaTerminoExame=(p,uptake,duracao)=>addMin(horaEntradaSala(p,uptake),Number(duracao)||25);
 
 const getRelMin=(time,ref)=>{
   let mTime=typeof time==='string'?toMin(time):time;
@@ -298,7 +311,7 @@ function cascataHorario(lista, hCalib, id, novoHorario){
 
 function recalc(lista, ac, vc, hC, t12, perda, fMinG, fMaxG) {
   let cA = parseFloat(ac) || 0;
-  let calcList = [...lista].sort((a, b) => getRelMin(a.hSim, hC) - getRelMin(b.hSim, hC));
+  let calcList = [...lista].sort((a, b) => getRelMin(horaInjecaoEfetiva(a), hC) - getRelMin(horaInjecaoEfetiva(b), hC));
   let fatorPerda = 1 - perda / 100;
 
   let lc = calcList.map(p => {
@@ -306,7 +319,7 @@ function recalc(lista, ac, vc, hC, t12, perda, fMinG, fMaxG) {
     const fmn = parseFloat(p.fMin) || fMinG;
     const fmx = parseFloat(p.fMax) || fMaxG;
     const dPmin = w * fmn, dPmax = w * fmx;
-    let dt = Math.max(getRelMin(p.hSim, hC), 0);
+    let dt = Math.max(getRelMin(horaInjecaoEfetiva(p), hC), 0);
     let dec = Math.pow(0.5, dt / t12);
     return { ...p, dPmin, dPmax, dt, dec, doseAplicar: 0, guilhotina: false, doseRealExistente: 0 };
   });
@@ -359,7 +372,8 @@ function recalc(lista, ac, vc, hC, t12, perda, fMinG, fMaxG) {
   let atvCorrente = cA;
   let tA = hC;
   for (let p of lc) {
-    let dtPasso = Math.max(getRelMin(p.hSim, tA), 0);
+    const hInjecao=horaInjecaoEfetiva(p);
+    let dtPasso = Math.max(getRelMin(hInjecao, tA), 0);
     atvCorrente = decair(atvCorrente, t12, dtPasso);
     p.disp = atvCorrente;
     // Teto REAL da dose para este paciente: além do limite por peso (dPmax),
@@ -375,7 +389,7 @@ function recalc(lista, ac, vc, hC, t12, perda, fMinG, fMaxG) {
       atvCorrente = atvCorrente - usoFrasco;
       p.isConstrained = (p.doseAplicar < p.dPmax - 0.05 && p.doseAplicar > 0);
     }
-    tA = p.hSim;
+    tA = hInjecao;
   }
 
   const atvFinal = atvCorrente;
@@ -395,16 +409,16 @@ const tetoSugerido=(p,temReal)=>{
   return Math.min(p.dPmax,p.doseAplicar);
 };
 
-/* Ao registrar a primeira dose real, congela somente a referência visual que
-   estava na tela. O motor continua usando doseReal normalmente; ao apagar o
-   registro, a referência congelada também é removida. */
+/* Ao registrar a primeira dose real, congela a referência visual e registra o
+   horário real. Ele pode ser corrigido manualmente. Ao apagar a dose, ambos os
+   registros factuais são removidos. */
 function atualizacaoDoseReal(p,valor){
   const real=parseFloat(valor);
   if(real>0){
     const salva=parseFloat(p.doseReferencia);
-    return{doseReal:valor,doseReferencia:salva>0?salva:tetoSugerido(p,false)};
+    return{doseReal:valor,doseReferencia:salva>0?salva:tetoSugerido(p,false),hInjReal:horaValida(p.hInjReal)?p.hInjReal:nowt()};
   }
-  return{doseReal:valor,doseReferencia:""};
+  return{doseReal:valor,doseReferencia:"",hInjReal:""};
 }
 
 /* Uma dose registrada representa um fato físico: a calibração não pode ser
@@ -412,8 +426,8 @@ function atualizacaoDoseReal(p,valor){
    referência para não sofrer a conversão de meia-noite de getRelMin. */
 function doseRegistradaAntesDe(lista,hRef,hNova){
   const limite=getRelMin(hNova,hRef);
-  return lista.find(p=>!isNaN(parseFloat(p.doseReal))&&parseFloat(p.doseReal)>0
-    &&getRelMin(p.hSim,hRef)<limite)||null;
+  return lista.find(p=>temDoseRegistrada(p)
+    &&getRelMin(horaInjecaoEfetiva(p),hRef)<limite)||null;
 }
 
 /* Redistribui apenas os pacientes pendentes após mudança de calibração ou
@@ -426,8 +440,8 @@ function redistribuirAposCalibracao(prevLista,hAntiga,hNova,intervalo){
   const gap=Number(intervalo)||25;
   let cursor=addMin(hNova,15);
   return ordenada.map(p=>{
-    if(!isNaN(parseFloat(p.doseReal))&&parseFloat(p.doseReal)>0){
-      const aposDose=addMin(p.hSim,gap);
+    if(temDoseRegistrada(p)){
+      const aposDose=addMin(horaInjecaoEfetiva(p),gap);
       if(getRelMin(aposDose,hNova)>getRelMin(cursor,hNova))cursor=aposDose;
       return p;
     }
@@ -597,7 +611,7 @@ function TimeCell({value,onCommit,style}){
   const [v,setV]=useState(value);
   useEffect(()=>{setV(value);},[value]);
   function commit(){
-    if(v && /^\d{2}:\d{2}$/.test(v)){ if(v!==value) onCommit(v); }
+    if(v && /^\d{2}:\d{2}$/.test(v)){ if(v!==value&&onCommit(v)===false)setV(value); }
     else { setV(value); }
   }
   return <input className="t-inp mono" type="time" value={v}
@@ -625,6 +639,14 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
     if(updates.hSim!==undefined){ setLista(prev=>cascataHorario(prev, cfg.hCalib, id, updates.hSim)); return; }
     setLista(prev=>prev.map(x=>x.id===id ? {...x,...updates} : x));
   }
+  function updHoraReal(p,valor){
+    if(!horaValida(valor)||getRelMin(valor,cfg.hCalib)<0){
+      showToast(lang.injecaoMenorCalib.replace("{h}",valor||"—").replace("{c}",cfg.hCalib));
+      return false;
+    }
+    upd(p.id,{hInjReal:valor});
+    return true;
+  }
   function del(id){
     if(confirm(lang.confirmarExclusao.replace("{nome}","este paciente"))){
       vib(); setLista(p=>p.filter(x=>x.id!==id)); showToast(lang.pacienteRemovido);
@@ -635,7 +657,7 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
     const sorted=[...lista].sort((a,b)=>getRelMin(a.hSim, cfg.hCalib)-getRelMin(b.hSim, cfg.hCalib));
     const gap = Number(cfg.intervalo) || 25;
     const sugerida = sorted.length ? addMin(sorted[sorted.length-1].hSim, gap) : addMin(cfg.hCalib||"08:00",15);
-    setLista(v=>[...v, { id: Date.now(), nome: "", peso: "", hSim: sugerida, fMin: cfg.fMin||"0.08", fMax: cfg.fMax||"0.12", doseReal: "" }]);
+    setLista(v=>[...v, { id: Date.now(), nome: "", peso: "", hSim: sugerida, fMin: cfg.fMin||"0.08", fMax: cfg.fMax||"0.12", doseReal: "", hInjReal: "" }]);
   }
 
   // Lógica de Redimensionamento do PC
@@ -728,9 +750,10 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
               <Fld label={lang.doseMin}><input className="inp" type="number" step="0.01" value={cfg.fMin} onChange={e=>setCfg({...cfg,fMin:e.target.value})}/></Fld>
               <Fld label={lang.doseMax}><input className="inp" type="number" step="0.01" value={cfg.fMax} onChange={e=>setCfg({...cfg,fMax:e.target.value})}/></Fld>
             </div>
-            <div className="g2" style={{marginTop:16}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:12,marginTop:16}}>
               <Fld label={lang.captacao}><input className="inp" type="number" value={cfg.uptake??60} onChange={e=>setCfg({...cfg,uptake:e.target.value===""?"":parseInt(e.target.value)})} onBlur={e=>setCfg(c=>({...c,uptake:parseInt(e.target.value)||60}))}/></Fld>
               <Fld label={lang.gapInjecao}><input className="inp" type="number" value={cfg.intervalo??25} onChange={e=>setCfg({...cfg,intervalo:e.target.value===""?"":parseInt(e.target.value)})} onBlur={e=>setCfg(c=>({...c,intervalo:parseInt(e.target.value)||25}))}/></Fld>
+              <Fld label={lang.duracaoExame}><input className="inp" type="number" value={cfg.duracaoExame??25} onChange={e=>setCfg({...cfg,duracaoExame:e.target.value===""?"":parseInt(e.target.value)})} onBlur={e=>setCfg(c=>({...c,duracaoExame:parseInt(e.target.value)||25}))}/></Fld>
             </div>
           </div>
         </div>
@@ -754,7 +777,8 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
               <thead>
                 <tr>
                   <th style={{textAlign:'left'}}>{lang.nomePaciente}</th>
-                  <th>{lang.horario}</th>
+                  <th>{lang.horaPrevista}</th>
+                  <th style={{color:'var(--c)'}}>{lang.horaReal}</th>
                   <th style={{color:'var(--time)'}}>{lang.sala}</th>
                   <th>{lang.pesoKg}</th>
                   <th style={{color:'var(--warning)'}} title={lang.doseMin}>MÍN</th><th style={{color:'var(--warning)'}} title={lang.doseMax}>MÁX</th>
@@ -764,7 +788,8 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
               </thead>
               <tbody>
                 {dispList.map((p, i) => {
-                  const dtInj = getRelMin(p.hSim, cfg.hCalib);
+                  const hEfetiva = horaInjecaoEfetiva(p);
+                  const dtInj = getRelMin(hEfetiva, cfg.hCalib);
                   const atvInj = decair(acN, t12, Math.max(dtInj, 0));
                   const conc = vcN > 0 ? atvInj / vcN : 0;
                   const doseRealVal = parseFloat(p.doseReal);
@@ -772,15 +797,17 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
                   const doseExib = temReal ? doseRealVal : p.doseAplicar;
                   const vol = conc > 0 ? doseExib / conc : null;
                   
-                  const hSala = addMin(p.hSim, cfg.uptake || 60);
+                  const hSala = horaEntradaSala(p, cfg.uptake);
+                  const entradaEstimada = temReal && !horaValida(p.hInjReal);
                   
                   if (p.guilhotina) {
                     return (
                       <tr key={p.id} style={{background: 'color-mix(in srgb, var(--danger) 5%, transparent)'}}>
                         <td><input className="t-inp txt" value={p.nome} onChange={e=>upd(p.id, {nome: e.target.value})} style={{color:'var(--danger)'}}/></td>
                         <td><TimeCell value={p.hSim} onCommit={v=>upd(p.id, {hSim: v})} style={{color:'var(--danger)'}}/></td>
+                        <td><div className="mono" style={{color:'var(--muted)'}}>—</div></td>
                         <td><div className="mono" style={{fontWeight:800, color:'var(--danger)', opacity:0.8}}>{hSala}</div></td>
-                        <td><input className="t-inp mono" type="number" step="1" value={p.peso} onChange={e=>upd(p.id, {peso: e.target.value, doseReal:"", doseReferencia:""})} style={{width: 60, color:'var(--danger)'}} /></td>
+                        <td><input className="t-inp mono" type="number" step="1" value={p.peso} onChange={e=>upd(p.id, {peso: e.target.value, doseReal:"", doseReferencia:"",hInjReal:""})} style={{width: 60, color:'var(--danger)'}} /></td>
                         <td colSpan="5" style={{fontSize:11, color:'var(--danger)', fontWeight:800, textAlign:'center'}}>
                           GUILHOTINADO • REQ: {f1(p.dPmin)} / DISP: {f1(p.doseRealExistente)} mCi
                         </td>
@@ -797,8 +824,9 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
                     <tr key={p.id}>
                       <td><input className="t-inp txt" value={p.nome} onChange={e=>upd(p.id, {nome: e.target.value})} placeholder={`Paciente ${i+1}`} /></td>
                       <td><TimeCell value={p.hSim} onCommit={v=>upd(p.id, {hSim: v})} /></td>
-                      <td><div className="mono" style={{fontWeight:800, color:'var(--time)'}}>{hSala}</div></td>
-                      <td><input className="t-inp mono" type="number" step="1" value={p.peso} onChange={e=>upd(p.id, {peso: e.target.value, doseReal:"", doseReferencia:""})} placeholder="0" style={{width: 60}} /></td>
+                      <td>{temReal?<TimeCell value={p.hInjReal||""} onCommit={v=>updHoraReal(p,v)} style={{color:horaValida(p.hInjReal)?'var(--c)':'var(--warning)',minWidth:92}}/>:<div className="mono" style={{color:'var(--muted)'}}>—</div>}</td>
+                      <td><div className="mono" title={entradaEstimada?lang.pdfHorarioEstimado:undefined} style={{fontWeight:800, color:entradaEstimada?'var(--warning)':'var(--time)'}}>{entradaEstimada?'~':''}{hSala}</div></td>
+                      <td><input className="t-inp mono" type="number" step="1" value={p.peso} onChange={e=>upd(p.id, {peso: e.target.value, doseReal:"", doseReferencia:"",hInjReal:""})} placeholder="0" style={{width: 60}} /></td>
                       <td><input className="t-inp mono sm" type="number" step="0.01" value={p.fMin || cfg.fMin} onChange={e=>upd(p.id, {fMin: e.target.value})} style={{width: 65, color:'var(--muted)'}} /></td>
                       <td><input className="t-inp mono sm" type="number" step="0.01" value={p.fMax || cfg.fMax} onChange={e=>upd(p.id, {fMax: e.target.value})} style={{width: 65, color:'var(--muted)'}} /></td>
                       <td>
@@ -812,7 +840,7 @@ function TelaPrincipal({cfg,setCfg,lista,setLista,cor,onSalvar,salvandoPdf,onCal
                     </tr>
                   )
                 })}
-                {!dispList.length && <tr><td colSpan="11" style={{padding:40, color:'var(--muted)', fontWeight:600}}>{lang.nenhumAgendamento}</td></tr>}
+                {!dispList.length && <tr><td colSpan="12" style={{padding:40, color:'var(--muted)', fontWeight:600}}>{lang.nenhumAgendamento}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -883,7 +911,7 @@ function TelaLote({cfg,setCfg,cor,ativa,onLimpar,setMenuOpen,showToast,lang}){
   </div>;
 }
 
-function PatientCard({p,isN,cor,acNum,vcNum,t12,hCalib,calibMin,onUpdate,onDelete,showToast,lang}){
+function PatientCard({p,isN,cor,acNum,vcNum,t12,hCalib,uptake,duracaoExame,onUpdate,onDelete,showToast,lang}){
   const [exp,setExp]=useState(false);
   const doseReal=p.doseReal||"";
   const temReal=parseFloat(doseReal)>0;
@@ -896,10 +924,14 @@ function PatientCard({p,isN,cor,acNum,vcNum,t12,hCalib,calibMin,onUpdate,onDelet
   const hmC = isGuilhotina ? 'hm-guilhotina' : r==='done'?'hm-done':r==='ok'?'hm-ok':r==='warn'?'hm-warn':'hm-danger';
 
   const doseExib=temReal?parseFloat(doseReal):p.doseAplicar;
-  const dtInj=getRelMin(p.hSim, hCalib);
+  const hEfetiva=horaInjecaoEfetiva(p);
+  const dtInj=getRelMin(hEfetiva, hCalib);
   const atvInj=decair(acNum,t12,Math.max(dtInj,0));
   const conc=vcNum>0?atvInj/vcNum:0;
   const vol=conc>0?doseExib/conc:null;
+  const entrada=horaEntradaSala(p,uptake);
+  const termino=horaTerminoExame(p,uptake,duracaoExame);
+  const entradaEstimada=temReal&&!horaValida(p.hInjReal);
 
   const [nome, setNome] = useState(p.nome);
   const [peso, setPeso] = useState(p.peso);
@@ -924,6 +956,14 @@ function PatientCard({p,isN,cor,acNum,vcNum,t12,hCalib,calibMin,onUpdate,onDelet
   }
   function handleBlurHora(e){ const next=e.relatedTarget; if(!e.currentTarget.contains(next)) confirmarHora(); }
   function handleRealChange(val){onUpdate(p.id,atualizacaoDoseReal(p,val));}
+  function handleHoraReal(val){
+    if(!horaValida(val)||getRelMin(val,hCalib)<0){
+      showToast(lang.injecaoMenorCalib.replace("{h}",val||"—").replace("{c}",hCalib));
+      return false;
+    }
+    onUpdate(p.id,{hInjReal:val});
+    return true;
+  }
 
   return(
     <div className={`card fi ${hmC}`} style={{border:isN?`2px solid ${cor}`:undefined}}>
@@ -943,8 +983,11 @@ function PatientCard({p,isN,cor,acNum,vcNum,t12,hCalib,calibMin,onUpdate,onDelet
             ) : <span style={{fontSize:16,fontWeight:700,color:isGuilhotina?'var(--danger)':'var(--text)'}}>{p.hSim}</span>}
             
             <span style={{fontSize: exp ? 14 : 12, color:'var(--muted)', fontWeight:600, display:'flex', alignItems:'center', marginLeft: 10}}>
-              {exp ? <><input className="inp-clean" type="number" inputMode="decimal" value={peso} onChange={e=>setPeso(e.target.value)} onBlur={()=>onUpdate(p.id, peso!==p.peso?{peso, doseReal:"", doseReferencia:""}:{peso})} onClick={e=>e.stopPropagation()} style={{width: 44, textAlign:'center', margin:'0 4px', fontSize:15, fontWeight:700, color:'var(--text)'}} /> kg</> : <span>{' • '}{p.peso} kg</span>}
+              {exp ? <><input className="inp-clean" type="number" inputMode="decimal" value={peso} onChange={e=>setPeso(e.target.value)} onBlur={()=>onUpdate(p.id, peso!==p.peso?{peso, doseReal:"", doseReferencia:"",hInjReal:""}:{peso})} onClick={e=>e.stopPropagation()} style={{width: 44, textAlign:'center', margin:'0 4px', fontSize:15, fontWeight:700, color:'var(--text)'}} /> kg</> : <span>{' • '}{p.peso} kg</span>}
             </span>
+          </div>
+          <div style={{fontSize:11,color:entradaEstimada?'var(--warning)':'var(--muted)',fontWeight:700,marginTop:5}}>
+            {temReal?`${lang.horaReal}: ${horaValida(p.hInjReal)?p.hInjReal:'—'} · `:''}{entradaEstimada?'~':''}{lang.entradaReal}: {entrada}
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
@@ -976,11 +1019,11 @@ function PatientCard({p,isN,cor,acNum,vcNum,t12,hCalib,calibMin,onUpdate,onDelet
             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:18}}>
               <div style={{background:'var(--alt)', border:'1px solid var(--border)', borderRadius:14, padding:'10px 14px'}}>
                 <div style={{fontSize:10, fontWeight:800, color:'var(--muted)', textTransform:'uppercase'}}>{lang.doseMin} (mCi/kg)</div>
-                <input className="inp-clean" type="number" step="0.01" value={fMin} onChange={e=>setFMin(e.target.value)} onBlur={()=>onUpdate(p.id, fMin!==(p.fMin||"0.08")?{fMin, doseReal:"", doseReferencia:""}:{fMin})} style={{fontSize:16, fontWeight:700,color:'var(--text)',width:'100%',marginTop:4}} onClick={e=>e.stopPropagation()}/>
+                <input className="inp-clean" type="number" step="0.01" value={fMin} onChange={e=>setFMin(e.target.value)} onBlur={()=>onUpdate(p.id, fMin!==(p.fMin||"0.08")?{fMin, doseReal:"", doseReferencia:"",hInjReal:""}:{fMin})} style={{fontSize:16, fontWeight:700,color:'var(--text)',width:'100%',marginTop:4}} onClick={e=>e.stopPropagation()}/>
               </div>
               <div style={{background:'var(--alt)', border:'1px solid var(--border)', borderRadius:14, padding:'10px 14px'}}>
                 <div style={{fontSize:10, fontWeight:800, color:'var(--muted)', textTransform:'uppercase'}}>{lang.doseMax} (mCi/kg)</div>
-                <input className="inp-clean" type="number" step="0.01" value={fMax} onChange={e=>setFMax(e.target.value)} onBlur={()=>onUpdate(p.id, fMax!==(p.fMax||"0.12")?{fMax, doseReal:"", doseReferencia:""}:{fMax})} style={{fontSize:16,fontWeight:700,color:'var(--text)',width:'100%',marginTop:4}} onClick={e=>e.stopPropagation()}/>
+                <input className="inp-clean" type="number" step="0.01" value={fMax} onChange={e=>setFMax(e.target.value)} onBlur={()=>onUpdate(p.id, fMax!==(p.fMax||"0.12")?{fMax, doseReal:"", doseReferencia:"",hInjReal:""}:{fMax})} style={{fontSize:16,fontWeight:700,color:'var(--text)',width:'100%',marginTop:4}} onClick={e=>e.stopPropagation()}/>
               </div>
             </div>
             {!isGuilhotina && (
@@ -993,6 +1036,20 @@ function PatientCard({p,isN,cor,acNum,vcNum,t12,hCalib,calibMin,onUpdate,onDelet
                   <span className="dose-real-unit">mCi</span>
                   {temReal&&(<button className="dose-real-clear" onClick={(e)=>{e.stopPropagation();handleRealChange("");}}>{ICONS.close}</button>)}
                 </div>
+                {temReal&&<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginTop:12}}>
+                  <div style={{background:'var(--alt)',border:'1px solid var(--border)',borderRadius:12,padding:8,textAlign:'center'}}>
+                    <div style={{fontSize:9,fontWeight:800,color:'var(--muted)',textTransform:'uppercase',marginBottom:4}}>{lang.horaReal}</div>
+                    <TimeCell value={p.hInjReal||""} onCommit={handleHoraReal} style={{color:horaValida(p.hInjReal)?'var(--c)':'var(--warning)',padding:4,fontSize:14}}/>
+                  </div>
+                  <div style={{background:'var(--alt)',border:'1px solid var(--border)',borderRadius:12,padding:8,textAlign:'center'}}>
+                    <div style={{fontSize:9,fontWeight:800,color:'var(--muted)',textTransform:'uppercase',marginBottom:4}}>{lang.entradaReal}</div>
+                    <div className="mono" style={{fontWeight:900,color:entradaEstimada?'var(--warning)':'var(--time)'}}>{entradaEstimada?'~':''}{entrada}</div>
+                  </div>
+                  <div style={{background:'var(--alt)',border:'1px solid var(--border)',borderRadius:12,padding:8,textAlign:'center'}}>
+                    <div style={{fontSize:9,fontWeight:800,color:'var(--muted)',textTransform:'uppercase',marginBottom:4}}>{lang.termino}</div>
+                    <div className="mono" style={{fontWeight:900}}>{entradaEstimada?'~':''}{termino}</div>
+                  </div>
+                </div>}
               </>
             )}
             <div style={{marginTop:10,display:'flex',justifyContent:'center',gap:16}}>
@@ -1021,7 +1078,6 @@ function TelaLista({cfg,setCfg,lista,setLista,cor,onNovo,onSalvar,salvandoPdf,at
 
   const {lista:lc,atvFinal}=useMemo(()=>recalc(lista,cfg.aCalib,cfg.vCalib,cfg.hCalib,t12,perda,fMinG,fMxG),[lista,cfg,t12,perda,fMinG,fMxG]);
   const dispList=useMemo(()=>[...lc].sort((a,b)=>getRelMin(a.hSim, cfg.hCalib)-getRelMin(b.hSim, cfg.hCalib)),[lc, cfg.hCalib]);
-  const calibMin=toMin(cfg.hCalib||"09:00");
   const [agora,setAgora]=useState(nowt());
   useEffect(()=>{const t=setInterval(()=>setAgora(nowt()),60000);return()=>clearInterval(t);},[]);
 
@@ -1084,9 +1140,10 @@ function TelaLista({cfg,setCfg,lista,setLista,cor,onNovo,onSalvar,salvandoPdf,at
               <Fld label={lang.doseMax}><input className="inp" type="number" step="0.01" value={cfg.fMax} onChange={e=>setCfg({...cfg,fMax:e.target.value})}/></Fld>
             </div>
           </div>
-          <div className="g2" style={{marginTop:16}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:12,marginTop:16}}>
             <Fld label={lang.captacao}><input className="inp" type="number" value={cfg.uptake??60} onChange={e=>setCfg({...cfg,uptake:e.target.value===""?"":parseInt(e.target.value)})} onBlur={e=>setCfg(c=>({...c,uptake:parseInt(e.target.value)||60}))}/></Fld>
             <Fld label={lang.gapInjecao}><input className="inp" type="number" value={cfg.intervalo??25} onChange={e=>setCfg({...cfg,intervalo:e.target.value===""?"":parseInt(e.target.value)})} onBlur={e=>setCfg(c=>({...c,intervalo:parseInt(e.target.value)||25}))}/></Fld>
+            <Fld label={lang.duracaoExame}><input className="inp" type="number" value={cfg.duracaoExame??25} onChange={e=>setCfg({...cfg,duracaoExame:e.target.value===""?"":parseInt(e.target.value)})} onBlur={e=>setCfg(c=>({...c,duracaoExame:parseInt(e.target.value)||25}))}/></Fld>
           </div>
         </div>
       )}
@@ -1097,7 +1154,7 @@ function TelaLista({cfg,setCfg,lista,setLista,cor,onNovo,onSalvar,salvandoPdf,at
         <div style={{marginTop:8,fontSize:14,fontWeight:500}}>{lang.toqueMais}</div>
       </div>}
 
-      {dispList.map(p=>( <PatientCard key={p.id} p={p} isN={p.id===proxId} cor={cor} acNum={acN} vcNum={vcNum} t12={t12} hCalib={cfg.hCalib||"09:00"} calibMin={calibMin} onUpdate={upd} onDelete={del} showToast={showToast} lang={lang}/> ))}
+      {dispList.map(p=>( <PatientCard key={p.id} p={p} isN={p.id===proxId} cor={cor} acNum={acN} vcNum={vcNum} t12={t12} hCalib={cfg.hCalib||"09:00"} uptake={cfg.uptake} duracaoExame={cfg.duracaoExame} onUpdate={upd} onDelete={del} showToast={showToast} lang={lang}/> ))}
     </div>
     <button className="fab" onClick={()=>{vib();onNovo();}}>+</button>
   </div>;
@@ -1167,7 +1224,7 @@ function TelaNovo({cfg,lista,onAdd,onBack,cor,ativa,showToast,lang}){
         )}
       </div>
       <div style={{display:'flex',gap:10,marginBottom:16}}>
-        {[[lang.injecao,h],[lang.sala,addMin(h,cfg.uptake||UPTAKE)],[lang.termino,addMin(addMin(h,cfg.uptake||UPTAKE),parseInt(cfg.intervalo)||25)]].map(([l,v])=>(
+        {[[lang.injecaoPrevista,h],[lang.entradaPrevista,addMin(h,cfg.uptake||UPTAKE)],[lang.terminoPrevisto,addMin(addMin(h,cfg.uptake||UPTAKE),parseInt(cfg.duracaoExame)||25)]].map(([l,v])=>(
           <div key={l} style={{flex:1,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:14,padding:'12px 8px',textAlign:'center',boxShadow:'var(--shadow-sm)'}}>
             <div style={{fontSize:10,fontWeight:800,color:'var(--muted)',textTransform:'uppercase',marginBottom:4}}>{l}</div><div className="mono" style={{fontSize:16,fontWeight:900}}>{v}</div>
           </div>
@@ -1180,7 +1237,7 @@ function TelaNovo({cfg,lista,onAdd,onBack,cor,ativa,showToast,lang}){
       <button className="btn" onClick={()=>{
         if(!nome||!w)return;
         if(getRelMin(h, cfg.hCalib)<0){showToast(lang.injecaoMenorCalib.replace("{h}",h).replace("{c}",cfg.hCalib));return;}
-        vib(); onAdd({id:Date.now(),nome:nome.trim(),peso,hSim:h,fMin:String(fMnC),fMax:String(fMxC),doseReal:""});
+        vib(); onAdd({id:Date.now(),nome:nome.trim(),peso,hSim:h,fMin:String(fMnC),fMax:String(fMxC),doseReal:"",hInjReal:""});
         setNome("");setPeso("");showToast(<>{ICONS.check} {lang.pacienteAdicionado}</>);
       }} disabled={!nome||!w} style={{height:56,fontSize:18,marginTop:8, width:'100%'}}>{lang.confirmarSalvar}</button>
     </div>
@@ -1283,7 +1340,7 @@ function TelaCalc({cor,ativa,onFechar,lang}){
 function PrintPDF({cfg,lista,totReal,restante,efic,cor,lang}){
   const acN=parseFloat(cfg.aCalib)||0; const vcN=parseFloat(cfg.vCalib)||0;
   const t12=getT12(cfg.farmaco,cfg.mvCustom); const perda=parseFloat(cfg.perda)||4;
-  const uptake=parseInt(cfg.uptake)||60; const intervalo=parseInt(cfg.intervalo)||25;
+  const uptake=parseInt(cfg.uptake)||60; const intervalo=parseInt(cfg.intervalo)||25; const duracao=parseInt(cfg.duracaoExame)||25;
   const concI=(acN>0&&vcN>0)?acN/vcN:0;
   const fMnG=parseFloat(cfg.fMin)||0.08; const fMxG=parseFloat(cfg.fMax)||0.12;
   const locale=lang._id==="en"?"en-US":lang._id==="es"?"es-ES":"pt-BR";
@@ -1295,7 +1352,7 @@ function PrintPDF({cfg,lista,totReal,restante,efic,cor,lang}){
   const totalProgramado=lista.reduce((s,p)=>s+(parseFloat(p.doseAplicar)||0),0);
   const volTotalAplicado=lista.reduce((s,p)=>{
     const d=parseFloat(p.doseReal)||0; if(d<=0)return s;
-    const dtI=getRelMin(p.hSim,cfg.hCalib);
+    const dtI=getRelMin(horaInjecaoEfetiva(p),cfg.hCalib);
     const aAt=acN*Math.pow(0.5,dtI/t12)*(1-perda/100);
     const cAt=vcN>0?aAt/vcN:0;
     return s+(cAt>0?d/cAt:0);
@@ -1311,8 +1368,8 @@ function PrintPDF({cfg,lista,totReal,restante,efic,cor,lang}){
     [[lang.pdfMeiaVida,`${t12.toFixed(2)} min`],[lang.pdfPerdaRF,`${perda}%`]],
     [[lang.pdfCalibracao,`${dataHoje()} · ${cfg.hCalib||"—"}`],[lang.pdfAtividade,`${f1(acN)} mCi (${(acN*37).toFixed(0)} MBq)`]],
     [[lang.pdfVolume2,vcN>0?`${vcN} mL`:"—"],[lang.pdfConcInicial,concI>0?`${concI.toFixed(2)} mCi/mL`:"—"]],
-    [[lang.pdfCaptacao,`${uptake} min`],[lang.gapInjecao,`${intervalo} min`]],
-    [[lang.doseMin,`${fMnG.toFixed(2)} mCi/kg`],[lang.doseMax,`${fMxG.toFixed(2)} mCi/kg`]]
+    [[lang.pdfCaptacao,`${uptake} min`],[lang.duracaoExame,`${duracao} min`]],
+    [[lang.gapInjecao,`${intervalo} min`],[lang.janelaDose,`${fMnG.toFixed(2)}–${fMxG.toFixed(2)} mCi/kg`]]
   ];
 
   return <div style={{fontFamily:"Arial,sans-serif",color:"#000",background:"#fff",width:"100%"}}>
@@ -1342,25 +1399,29 @@ function PrintPDF({cfg,lista,totReal,restante,efic,cor,lang}){
     <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
       <thead><tr>
         <th style={{...TH,width:"3%"}}>#</th>
-        <th style={{...TH,width:"22%",textAlign:"left"}}>{lang.pdfPaciente}</th>
-        <th style={{...TH,width:"7%"}}>{lang.pdfPeso}</th>
-        <th style={{...TH,width:"8%"}}>{lang.horarioInjecao}</th>
-        <th style={{...TH,width:"8%"}}>{lang.pdfEntradaSala}</th>
-        <th style={{...TH,width:"11%"}}>{lang.pdfDoseProgramada}</th>
-        <th style={{...TH,width:"11%"}}>{lang.pdfDoseInjetada}</th>
-        <th style={{...TH,width:"9%"}}>{lang.pdfVolume}</th>
-        <th style={{...TH,width:"12%"}}>{lang.pdfFaixaReferencia}</th>
+        <th style={{...TH,width:"17%",textAlign:"left"}}>{lang.pdfPaciente}</th>
+        <th style={{...TH,width:"6%"}}>{lang.pdfPeso}</th>
+        <th style={{...TH,width:"7%"}}>{lang.horaPrevista}</th>
+        <th style={{...TH,width:"7%"}}>{lang.horaReal}</th>
+        <th style={{...TH,width:"7%"}}>{lang.pdfEntradaSala}</th>
+        <th style={{...TH,width:"7%"}}>{lang.pdfTermino}</th>
+        <th style={{...TH,width:"9%"}}>{lang.pdfDoseProgramada}</th>
+        <th style={{...TH,width:"9%"}}>{lang.pdfDoseInjetada}</th>
+        <th style={{...TH,width:"8%"}}>{lang.pdfVolume}</th>
+        <th style={{...TH,width:"11%"}}>{lang.pdfFaixaReferencia}</th>
         <th style={{...TH,width:"9%"}}>{lang.pdfStatus}</th>
       </tr></thead>
       <tbody>
-        {!lista.length?<tr><td colSpan="10" style={{...TDc,padding:18}}>{lang.pdfSemRegistros}</td></tr>
+        {!lista.length?<tr><td colSpan="12" style={{...TDc,padding:18}}>{lang.pdfSemRegistros}</td></tr>
         :lista.map((p,i)=>{
           const programada=parseFloat(p.doseAplicar)||0;
           const aplicada=parseFloat(p.doseReal)||0; const temReal=aplicada>0;
           const fmn=parseFloat(p.fMin)||fMnG; const fmx=parseFloat(p.fMax)||fMxG; const w=parseFloat(p.peso)||0;
           const min=p.dPmin||w*fmn; const max=p.dPmax||w*fmx;
-          const dtI=getRelMin(p.hSim,cfg.hCalib); const aAt=acN*Math.pow(0.5,dtI/t12)*(1-perda/100); const cAt=vcN>0?aAt/vcN:0;
-          const vol=temReal&&cAt>0?aplicada/cAt:0; const entrada=addMin(p.hSim,uptake);
+          const hReal=horaValida(p.hInjReal)?p.hInjReal:""; const dtI=getRelMin(horaInjecaoEfetiva(p),cfg.hCalib);
+          const aAt=acN*Math.pow(0.5,dtI/t12)*(1-perda/100); const cAt=vcN>0?aAt/vcN:0;
+          const vol=temReal&&cAt>0?aplicada/cAt:0; const entrada=horaEntradaSala(p,uptake); const fim=horaTerminoExame(p,uptake,duracao);
+          const estimado=!(temReal&&hReal);
           const conforme=temReal&&aplicada>=min-0.05&&aplicada<=max+0.05;
           const status=!temReal?lang.pdfPendente:conforme?lang.pdfConforme:lang.pdfForaFaixa;
           return <tr key={p.id}>
@@ -1368,7 +1429,9 @@ function PrintPDF({cfg,lista,totReal,restante,efic,cor,lang}){
             <td style={{...TD,fontWeight:800}}>{p.nome||"—"}</td>
             <td style={TDc}>{p.peso||"—"} kg</td>
             <td style={{...TDc,fontWeight:800}}>{p.hSim||"—"}</td>
-            <td style={TDc}>{entrada}</td>
+            <td style={{...TDc,fontWeight:800}}>{hReal||"—"}</td>
+            <td style={TDc}>{estimado?'~':''}{entrada}</td>
+            <td style={TDc}>{estimado?'~':''}{fim}</td>
             <td style={TDc}>{f1(programada)} mCi</td>
             <td style={{...TDc,fontWeight:900}}>{temReal?`${f1(aplicada)} mCi`:"—"}</td>
             <td style={TDc}>{vol>0?`${vol.toFixed(2)} mL`:"—"}</td>
@@ -1378,6 +1441,7 @@ function PrintPDF({cfg,lista,totReal,restante,efic,cor,lang}){
         })}
       </tbody>
     </table>
+    {lista.some(p=>!temDoseRegistrada(p)||!horaValida(p.hInjReal))&&<div style={{fontSize:7,marginTop:4}}><b>~</b> {lang.pdfHorarioEstimado}</div>}
 
     <div style={SEC}>{lang.pdfConsolidacao}</div>
     <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
@@ -1410,12 +1474,12 @@ const LANGS_DICT={
     modoExibicao: "Modo de Exibição", modoTabela: "Tabela Dinâmica", modoCartoes: "Cartões",
     nomeInstituicao:"Nome da Instituição",clinicaPlaceholder:"Clínica Nuclear…",
     parametros:"Parâmetros",janelaDose:"Janela de Dose",doseMin:"Mínimo",doseMax:"Máximo",janelaClinica:"Janela clínica pelo peso",
-    captacao:"Captação (min)",gapInjecao:"Gap Injeção (min)",sobre:"Sobre",
+    captacao:"Captação (min)",gapInjecao:"Gap Injeção (min)",duracaoExame:"Duração do exame (min)",sobre:"Sobre",
     guiaComoUsar:"Como Usar",
     guiaPasso1Tit:"Calibração do Frasco", guiaPasso1Txt:"No topo da tela Tabela ou na aba Lote, insira a Atividade inicial (mCi), o Volume (mL) e o Horário em que o frasco foi calibrado.",
     guiaPasso2Tit:"Parâmetros Padrão", guiaPasso2Txt:"Ajuste a 'Janela de Dose' para definir os fatores multiplicadores mínimos e máximos por quilo (mCi/kg), e o tempo de gap (intervalo) padrão entre os pacientes.",
     guiaPasso3Tit:"Auto-Distribuição", guiaPasso3Txt:"Ao adicionar pacientes, o motor matemático aloca as doses usando distribuição elástica. Ele garante matematicamente o mínimo para todos e distribui as sobras proporcionalmente.",
-    guiaPasso4Tit:"Registro da Dose Real", guiaPasso4Txt:"Ao aspirar a dose definitiva para a seringa, digite no campo 'Real'. O sistema irá travar este valor consumido e redistribuir o líquido restante no frasco para os próximos exames.",
+    guiaPasso4Tit:"Registro da Dose Real", guiaPasso4Txt:"Ao registrar a dose aplicada, o sistema captura a hora real da injeção. Confira ou corrija esse horário para calcular corretamente a entrada na sala, o decaimento e o volume.",
     guiaGuilhotinaTit:"Efeito Guilhotina", guiaGuilhotinaTxt:"Se após administrar doses o frasco ficar com líquido insuficiente para atingir a dose mínima do próximo paciente, ele será cortado (marcado em vermelho) protegendo contra injeções sub-doses.",
     loteTab:"Lote",operacaoTab:"Operação",calcTab:"Calculadora",
     radiofarmacoLote:"Radiofármaco e Lote",isotopo:"Isótopo",meiaVida:"Meia-vida",meiaVidaMin:"Meia-vida (min)",
@@ -1426,17 +1490,17 @@ const LANGS_DICT={
     disponivel:"Disponível",dadosFrascoIncompletos:"Dados incompletos. Cálculos de dose podem estar incorretos.",
     irParaLote:"Ir para Lote",autoDistribuir:"Auto-Distribuir",nenhumAgendamento:"Nenhum agendamento",toqueMais:"Toque para adicionar.",
     autoDistToast:"Auto-Distribuição: {k} pacientes",pacienteRemovido:"Paciente removido",
-    horarioInjecao:"Horário de Injeção",doseAplicada:"Dose Aplicada",atividadeLimitada:"atividade limitada",
+    horarioInjecao:"Horário de Injeção",horaPrevista:"Inj. Prevista",horaReal:"Inj. Real",doseAplicada:"Dose Aplicada",atividadeLimitada:"atividade limitada",
     atividadeAtual:"Atividade Atual",volumeAspirado:"Volume aspirado",
     novoAgendamento:"Novo Agendamento",cancelar:"Cancelar",nomePaciente:"Nome do Paciente",nomeCompleto:"Nome completo",
-    pesoKg:"Peso (kg)",horaInjecao:"Hora de Injeção",injecao:"Injeção",sala:"Sala",termino:"Término",
+    pesoKg:"Peso (kg)",horaInjecao:"Hora de Injeção",injecao:"Injeção",injecaoPrevista:"Injeção prevista",entradaPrevista:"Entrada prevista",terminoPrevisto:"Término previsto",entradaReal:"Entrada na sala",sala:"Sala",termino:"Término",
     doseAlvo:"Dose Alvo",minima:"Mínima",maxima:"Máxima",confirmarSalvar:"Confirmar e Salvar",
     injecaoMenorCalib:"Injeção ({h}) < Calibração ({c})",calibDepoisDeDose:"Calibração ({c}) posterior a dose registrada ({h}) — alteração desfeita",pacienteAdicionado:"Paciente adicionado!",
     editarPaciente:"Editar Paciente",voltar:"← Voltar",dadosPaciente:"Dados",excluirPaciente:"Excluir Paciente",confirmarExclusao:"Excluir {nome}?",
     excluir:"Excluir",dashboard:"Dashboard",salvarPdf:"Salvar PDF",pdfSalvo:"PDF salvo",pdfErro:"Erro ao gerar PDF",pdfNada:"Nenhum paciente para salvar",usoFrasco:"Uso do Frasco",eficiencia:"EFICIÊNCIA",
     administrado:"Administrado",restante:"Restante",calibrado:"Calibrado",pacientes:"Pacientes",
     calcDecaimento:"Calculadora",atividadeInicial:"Atividade Inicial (mCi)",horaInicial:"Hora Inicial",horaAlvo:"Hora Alvo",resultado:"Resultado",decorrido:"Decorrido",fator:"Fator",
-    pdfEntradaSala:"Entrada",pdfDoseInjetada:"Injetada",pdfVolume:"Volume",pdfFator:"Fator",pdfDoseMin:"Dose Mín",pdfDoseMax:"Dose Máx",
+    pdfEntradaSala:"Entrada",pdfTermino:"Término",pdfHorarioEstimado:"Horário calculado pelo previsto por ausência da hora real.",pdfDoseInjetada:"Injetada",pdfVolume:"Volume",pdfFator:"Fator",pdfDoseMin:"Dose Mín",pdfDoseMax:"Dose Máx",
     pdfPaciente:"Paciente",pdfPeso:"Peso",pdfResumo:"Resumo",pdfLote:"Lote",pdfAssinatura:"Assinatura do responsável",pdfResponsavel:"Responsável",pdfSemRegistros:"Sem registros.",
     pdfTitulo:"Registro de Operação de Radiofármaco PET-CT",pdfInstituicaoNaoInformada:"Instituição não informada",pdfDataOperacao:"Data da operação",pdfDocumento:"Documento",pdfGeradoEm:"Gerado em",
     pdfIdentificacaoLote:"Identificação do lote e parâmetros",pdfRegistroPacientes:"Registro individual de pacientes",pdfConsolidacao:"Consolidação da operação",pdfResponsabilidade:"Identificação e responsabilidade profissional",
@@ -1452,12 +1516,12 @@ const LANGS_DICT={
     modoExibicao: "View Mode", modoTabela: "Data Table", modoCartoes: "Cards",
     nomeInstituicao:"Institution",clinicaPlaceholder:"Clinic...",
     parametros:"Parameters",janelaDose:"Dose Window",doseMin:"Minimum",doseMax:"Maximum",janelaClinica:"Clinical window by weight",
-    captacao:"Uptake (min)",gapInjecao:"Injection Gap (min)",sobre:"About",
+    captacao:"Uptake (min)",gapInjecao:"Injection Gap (min)",duracaoExame:"Exam duration (min)",sobre:"About",
     guiaComoUsar:"How to Use",
     guiaPasso1Tit:"Vial Calibration", guiaPasso1Txt:"Enter the initial Activity (mCi), Volume (mL), and Calibration Time of the vial.",
     guiaPasso2Tit:"Default Parameters", guiaPasso2Txt:"Adjust the 'Dose Window' minimum and maximum limits (mCi/kg) and the default injection gap between patients.",
     guiaPasso3Tit:"Auto-Distribution", guiaPasso3Txt:"As you add patients, the math engine automatically allocates doses using elastic distribution. It guarantees the minimum needed and distributes leftovers proportionally.",
-    guiaPasso4Tit:"Real Dose Log", guiaPasso4Txt:"When you draw the dose into the syringe, input it in the 'Real' field. The system locks this value and redistributes the remaining vial fluid to the next patients.",
+    guiaPasso4Tit:"Real Dose Log", guiaPasso4Txt:"When the administered dose is recorded, the system captures the actual injection time. Check or correct it so room entry, decay, and volume are calculated correctly.",
     guiaGuilhotinaTit:"Guillotine Effect", guiaGuilhotinaTxt:"If the vial runs out of liquid and can't reach the minimum dose for the next patient, they will be cut off (marked red), preventing sub-dose injections.",
     loteTab:"Batch",operacaoTab:"Operation",calcTab:"Calculator",
     radiofarmacoLote:"Batch Calibration",isotopo:"Isotope",meiaVida:"Half-life",meiaVidaMin:"Half-life (min)",
@@ -1468,17 +1532,17 @@ const LANGS_DICT={
     disponivel:"Available",dadosFrascoIncompletos:"Vial data incomplete.",
     irParaLote:"Go to Batch",autoDistribuir:"Auto-Distribute",nenhumAgendamento:"No appointments",toqueMais:"Tap to add.",
     autoDistToast:"Auto-Distribution: {k} patients",pacienteRemovido:"Patient removed",
-    horarioInjecao:"Injection Time",doseAplicada:"Administered Dose",atividadeLimitada:"limited activity",
+    horarioInjecao:"Injection Time",horaPrevista:"Planned Inj.",horaReal:"Actual Inj.",doseAplicada:"Administered Dose",atividadeLimitada:"limited activity",
     atividadeAtual:"Current Activity",volumeAspirado:"Aspirated volume",
     novoAgendamento:"New Appointment",cancelar:"Cancel",nomePaciente:"NAME",nomeCompleto:"Full name",
-    pesoKg:"WEIGHT",horaInjecao:"Injection Time",injecao:"Injection",sala:"Room",termino:"End",
+    pesoKg:"WEIGHT",horaInjecao:"Injection Time",injecao:"Injection",injecaoPrevista:"Planned injection",entradaPrevista:"Planned entry",terminoPrevisto:"Planned end",entradaReal:"Room entry",sala:"Room",termino:"End",
     doseAlvo:"Target Dose",minima:"Minimum",maxima:"Maximum",confirmarSalvar:"Confirm & Save",
     injecaoMenorCalib:"Injection ({h}) < Calibration ({c})",calibDepoisDeDose:"Calibration ({c}) is after a recorded dose ({h}) — change reverted",pacienteAdicionado:"Patient added!",
     editarPaciente:"Edit Patient",voltar:"← Back",dadosPaciente:"Data",excluirPaciente:"Delete Patient",confirmarExclusao:"Delete {nome}?",
     excluir:"Delete",dashboard:"Dashboard",salvarPdf:"Save PDF",pdfSalvo:"PDF saved",pdfErro:"Error generating PDF",pdfNada:"No patients to save",usoFrasco:"Usage",eficiencia:"EFFIC.",
     administrado:"Administered",restante:"Remaining",calibrado:"Calibrated",pacientes:"Patients",
     calcDecaimento:"Calculator",atividadeInicial:"Init. Act. (mCi)",horaInicial:"Start Time",horaAlvo:"Target Time",resultado:"Result",decorrido:"Elapsed",fator:"Factor",
-    pdfEntradaSala:"Entry",pdfDoseInjetada:"Injected",pdfVolume:"Volume",pdfFator:"Factor",pdfDoseMin:"Min Dose",pdfDoseMax:"Max Dose",
+    pdfEntradaSala:"Entry",pdfTermino:"End",pdfHorarioEstimado:"Time calculated from the plan because actual injection time was unavailable.",pdfDoseInjetada:"Injected",pdfVolume:"Volume",pdfFator:"Factor",pdfDoseMin:"Min Dose",pdfDoseMax:"Max Dose",
     pdfPaciente:"Patient",pdfPeso:"Weight",pdfResumo:"Summary",pdfLote:"Batch",pdfAssinatura:"Responsible professional signature",pdfResponsavel:"Supervisor",pdfSemRegistros:"No records.",
     pdfTitulo:"PET-CT Radiopharmaceutical Operation Record",pdfInstituicaoNaoInformada:"Institution not provided",pdfDataOperacao:"Operation date",pdfDocumento:"Document",pdfGeradoEm:"Generated at",
     pdfIdentificacaoLote:"Batch identification and parameters",pdfRegistroPacientes:"Individual patient record",pdfConsolidacao:"Operation consolidation",pdfResponsabilidade:"Professional identification and responsibility",
@@ -1494,12 +1558,12 @@ const LANGS_DICT={
     modoExibicao: "Modo de Vista", modoTabela: "Tabla", modoCartoes: "Tarjetas",
     nomeInstituicao:"Institución",clinicaPlaceholder:"Clínica...",
     parametros:"Parámetros",janelaDose:"Ventana de Dosis",doseMin:"Mínimo",doseMax:"Máximo",janelaClinica:"Ventana clínica por peso",
-    captacao:"Captación (min)",gapInjecao:"Gap Inyección (min)",sobre:"Acerca de",
+    captacao:"Captación (min)",gapInjecao:"Gap Inyección (min)",duracaoExame:"Duración del examen (min)",sobre:"Acerca de",
     guiaComoUsar:"Cómo Usar",
     guiaPasso1Tit:"Calibración del Vial", guiaPasso1Txt:"Ingresa la Actividad (mCi) inicial, el Volumen (mL) y la Hora de Calibración del vial.",
     guiaPasso2Tit:"Parámetros Predeterminados", guiaPasso2Txt:"Ajusta la 'Ventana de Dosis' para definir los límites mínimos y máximos (mCi/kg) y el intervalo predeterminado entre pacientes.",
     guiaPasso3Tit:"Auto-Distribución", guiaPasso3Txt:"Al agregar pacientes, el motor asigna dosis usando distribución elástica. Garantiza el mínimo para todos y reparte el sobrante.",
-    guiaPasso4Tit:"Registro Real", guiaPasso4Txt:"Al extraer la dosis en la jeringa, anótalo en el campo 'Real'. El sistema fijará este valor y redistribuirá el líquido restante en el vial a los siguientes.",
+    guiaPasso4Tit:"Registro Real", guiaPasso4Txt:"Al registrar la dosis administrada, el sistema captura la hora real de la inyección. Revísala o corrígela para calcular correctamente la entrada, el decaimiento y el volumen.",
     guiaGuilhotinaTit:"Efecto Guillotina", guiaGuilhotinaTxt:"Si el vial se queda sin líquido para alcanzar la dosis mínima del próximo paciente, este se cortará (marcado en rojo) para evitar inyecciones sub-dosis.",
     loteTab:"Lote",operacaoTab:"Operación",calcTab:"Calculadora",
     radiofarmacoLote:"Calibración Lote",isotopo:"Isótopo",meiaVida:"Semivida",meiaVidaMin:"Semivida (min)",
@@ -1510,17 +1574,17 @@ const LANGS_DICT={
     disponivel:"Disponible",dadosFrascoIncompletos:"Datos del vial incompletos.",
     irParaLote:"Ir al Lote",autoDistribuir:"Auto-Distribuir",nenhumAgendamento:"Sin pacientes",toqueMais:"Toca para agregar.",
     autoDistToast:"Auto-Distribución: {k} pacientes",pacienteRemovido:"Paciente eliminado",
-    horarioInjecao:"Horario Inyección",doseAplicada:"Dosis Administrada",atividadeLimitada:"actividad limitada",
+    horarioInjecao:"Horario Inyección",horaPrevista:"Iny. Prevista",horaReal:"Iny. Real",doseAplicada:"Dosis Administrada",atividadeLimitada:"actividad limitada",
     atividadeAtual:"Actividad Actual",volumeAspirado:"Volumen aspirado",
     novoAgendamento:"Nuevo Agendamiento",cancelar:"Cancelar",nomePaciente:"NOMBRE",nomeCompleto:"Nombre completo",
-    pesoKg:"PESO",horaInjecao:"Hora Inyección",injecao:"Inyección",sala:"Sala",termino:"Fin",
+    pesoKg:"PESO",horaInjecao:"Hora Inyección",injecao:"Inyección",injecaoPrevista:"Inyección prevista",entradaPrevista:"Entrada prevista",terminoPrevisto:"Fin previsto",entradaReal:"Entrada a sala",sala:"Sala",termino:"Fin",
     doseAlvo:"Dosis Objetivo",minima:"Mínima",maxima:"Máxima",confirmarSalvar:"Confirmar y Guardar",
     injecaoMenorCalib:"Inyección ({h}) < Calibración ({c})",calibDepoisDeDose:"Calibración ({c}) posterior a una dosis registrada ({h}) — cambio revertido",pacienteAdicionado:"¡Paciente agregado!",
     editarPaciente:"Editar",voltar:"← Volver",dadosPaciente:"Datos",excluirPaciente:"Eliminar",confirmarExclusao:"¿Eliminar {nome}?",
     excluir:"Eliminar",dashboard:"Dashboard",salvarPdf:"Guardar PDF",pdfSalvo:"PDF guardado",pdfErro:"Error al generar PDF",pdfNada:"Sin pacientes para guardar",usoFrasco:"Uso",eficiencia:"EFIC.",
     administrado:"Administrado",restante:"Restante",calibrado:"Calibrado",pacientes:"Pacientes",
     calcDecaimento:"Calculadora",atividadeInicial:"Activ. Inicial (mCi)",horaInicial:"Hora Inicial",horaAlvo:"Hora Objetivo",resultado:"Resultado",decorrido:"Transcurrido",fator:"Factor",
-    pdfEntradaSala:"Entrada",pdfDoseInjetada:"Inyectada",pdfVolume:"Volumen",pdfFator:"Factor",pdfDoseMin:"Dosis Mín",pdfDoseMax:"Dosis Máx",
+    pdfEntradaSala:"Entrada",pdfTermino:"Fin",pdfHorarioEstimado:"Horario calculado por lo previsto al faltar la hora real.",pdfDoseInjetada:"Inyectada",pdfVolume:"Volumen",pdfFator:"Factor",pdfDoseMin:"Dosis Mín",pdfDoseMax:"Dosis Máx",
     pdfPaciente:"Paciente",pdfPeso:"Peso",pdfResumo:"Resumen",pdfLote:"Lote",pdfAssinatura:"Firma del responsable",pdfResponsavel:"Responsable",pdfSemRegistros:"Sin registros.",
     pdfTitulo:"Registro de Operación de Radiofármaco PET-CT",pdfInstituicaoNaoInformada:"Institución no informada",pdfDataOperacao:"Fecha de operación",pdfDocumento:"Documento",pdfGeradoEm:"Generado en",
     pdfIdentificacaoLote:"Identificación del lote y parámetros",pdfRegistroPacientes:"Registro individual de pacientes",pdfConsolidacao:"Consolidación de la operación",pdfResponsabilidade:"Identificación y responsabilidad profesional",
@@ -1624,7 +1688,7 @@ function App(){
         const conflito=doseRegistradaAntesDe(lista,prevHCalib.current||cfg.hCalib,cfg.hCalib);
         if(conflito){
           const hAnterior=prevHCalib.current;
-          showToast(<>{ICONS.alert} {lang.calibDepoisDeDose.replace("{c}",cfg.hCalib).replace("{h}",conflito.hSim)}</>);
+          showToast(<>{ICONS.alert} {lang.calibDepoisDeDose.replace("{c}",cfg.hCalib).replace("{h}",horaInjecaoEfetiva(conflito))}</>);
           setCfg(prev=>({...prev,hCalib:hAnterior}));
           return;
         }
