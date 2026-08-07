@@ -10,47 +10,52 @@ const babelBlock = [...html.matchAll(/<script type="text\/babel">([\s\S]*?)<\/sc
 assert.equal(babelBlock.length, 1, 'index.html deve conter um único bloco Babel');
 
 const source = babelBlock[0][1];
-const pureStart = source.indexOf('const UPTAKE=60;');
+const pureStart = source.indexOf('const SALA_OFFSET_MIN=60;');
 const pureEnd = source.indexOf('function Fld');
 
 assert.ok(pureStart >= 0 && pureEnd > pureStart, 'funções puras do motor não encontradas');
 
 const context = { assert, console, navigator: {} };
 const checks = `
-  const planned={hSim:"08:15",hInjReal:"",doseReal:""};
-  assert.equal(horaInjecaoEfetiva(planned),"08:15");
-  assert.equal(horaEntradaSala(planned,60),"09:15");
-  assert.equal(horaTerminoExame(planned,60,25),"09:40");
+  assert.equal(horaEntradaSala({hSim:"08:00"}),"09:00");
+  assert.equal(horaEntradaSala({hSim:"08:15"}),"09:15");
+  assert.equal(horaEntradaSala({hSim:"23:30"}),"00:30");
 
-  const injected={hSim:"08:15",hInjReal:"08:28",doseReal:"8.0"};
-  assert.equal(horaInjecaoEfetiva(injected),"08:28");
-  assert.equal(horaEntradaSala(injected,60),"09:28");
-  assert.equal(horaTerminoExame(injected,60,25),"09:53");
-
-  const legacy={hSim:"08:15",doseReal:"8.0"};
-  assert.equal(horaInjecaoEfetiva(legacy),"08:15");
   assert.equal(horaValida("08:59"),true);
   assert.equal(horaValida("08:60"),false);
   assert.equal(horaValida("24:00"),false);
 
-  const recalculated=recalc([injected],100,10,"08:00",109.77,4,0.08,0.12).lista[0];
-  assert.equal(recalculated.dt,28);
+  const antigo={id:1,hSim:"08:15",hInjReal:"08:28",doseReal:"8.0"};
+  const migrado=migrarPacienteHorario(antigo);
+  assert.equal(migrado.hSim,"08:28");
+  assert.equal(Object.prototype.hasOwnProperty.call(migrado,"hInjReal"),false);
 
-  const cleared=atualizacaoDoseReal(injected,"");
-  assert.equal(cleared.hInjReal,"");
-  assert.equal(cleared.doseReferencia,"");
+  const semHoraReal=migrarPacienteHorario({id:2,hSim:"09:10",hInjReal:""});
+  assert.equal(semHoraReal.hSim,"09:10");
+  assert.equal(Object.prototype.hasOwnProperty.call(semHoraReal,"hInjReal"),false);
+
+  const horaRealInvalida=migrarPacienteHorario({id:3,hSim:"10:20",hInjReal:"25:00"});
+  assert.equal(horaRealInvalida.hSim,"10:20");
+
+  const cfgMigrada=migrarConfiguracao({intervalo:30,uptake:45,duracaoExame:20,instituicao:"Teste"});
+  assert.equal(cfgMigrada.intervalo,30);
+  assert.equal(cfgMigrada.instituicao,"Teste");
+  assert.equal(Object.prototype.hasOwnProperty.call(cfgMigrada,"uptake"),false);
+  assert.equal(Object.prototype.hasOwnProperty.call(cfgMigrada,"duracaoExame"),false);
+
+  const recalculado=recalc([migrado],100,10,"08:00",109.77,4,0.08,0.12).lista[0];
+  assert.equal(recalculado.dt,28);
+
+  const doseAtualizada=atualizacaoDoseReal({...migrado,dPmax:10,doseAplicar:8},"7.5");
+  assert.equal(doseAtualizada.doseReal,"7.5");
+  assert.equal(Object.prototype.hasOwnProperty.call(doseAtualizada,"hInjReal"),false);
 
   let seed=0x12345678;
   const random=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/0x100000000;};
   for(let i=0;i<10000;i++){
     const h=Math.floor(random()*24),m=Math.floor(random()*60);
-    const uptake=1+Math.floor(random()*120),duration=1+Math.floor(random()*60);
-    const plannedTime=minsToTime(h*60+m),actualTime=minsToTime(h*60+m+Math.floor(random()*91));
-    const registered=i%2===0;
-    const patient={hSim:plannedTime,hInjReal:registered?actualTime:"",doseReal:registered?"5":""};
-    const base=registered?actualTime:plannedTime;
-    assert.equal(horaEntradaSala(patient,uptake),addMin(base,uptake));
-    assert.equal(horaTerminoExame(patient,uptake,duration),addMin(base,uptake+duration));
+    const injecao=minsToTime(h*60+m);
+    assert.equal(horaEntradaSala({hSim:injecao}),addMin(injecao,60));
   }
 `;
 
@@ -70,4 +75,4 @@ const usedKeys = [...source.matchAll(/lang\.([A-Za-z0-9_]+)/g)].map(match => mat
 const missingKeys = [...new Set(usedKeys)].filter(key => !(key in languageContext.dict.pt));
 assert.deepEqual(missingKeys, []);
 
-console.log('Modelo temporal: 10.000 cenários e traduções validados.');
+console.log('Modelo temporal simplificado: sala fixa em +60 min, migração e traduções validadas.');
